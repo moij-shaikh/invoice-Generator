@@ -10,7 +10,7 @@ class User(Base):
     email:Mapped[str]
     password:Mapped[str]
     is_verified:Mapped[bool]=mapped_column(default=False)
-    is_verified:Mapped[bool]=mapped_column(default=False)
+    is_blocked:Mapped[bool]=mapped_column(default=False)
     is_active:Mapped[bool]=mapped_column(default=True)
     create_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
     updated_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
