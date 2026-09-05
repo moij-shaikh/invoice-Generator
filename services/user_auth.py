@@ -5,29 +5,30 @@ import secrets
 from fastapi import Depends , status , HTTPException
 from fastapi.security import OAuth2PasswordBearer
 
-def make_access_token(sub:str,role:str)->str:
+def make_access_token(sub:str,role:str="user")->str:
     payload={
-        "sub":sub,
+        "sub":str(sub),
         "role":role,
         "exp":datetime.now(timezone.utc) + timedelta(minutes=10),
         "token_id":str(secrets.token_urlsafe(4))
     }
     token=jwt.encode(payload,JWT_SECRET_KEY,algorithm=JWT_ALGORITHM)
     return token
-def make_refresh_token(sub:str,role:str)->str:
+def make_refresh_token(sub:str,role:str,token_id:str|None=None)->str:
     payload={
         "sub":sub,
         "role":role,
-        "exp":datetime.now(timezone.utc) + timedelta(days=10)
+        "exp":datetime.now(timezone.utc) + timedelta(days=10),
+        "token_id":token_id
     }
     token=jwt.encode(payload,JWT_SECRET_KEY,algorithm=JWT_ALGORITHM)
     return token
 
 get_jwt_token=OAuth2PasswordBearer(tokenUrl="/user/login",scheme_name="User")
 
-def get_current_user_payload(token:str=Depends(get_jwt_token)):
+def get_current_user_payload(token:str=Depends(get_jwt_token))->dict:
     try:
         payload=jwt.decode(token,JWT_SECRET_KEY,algorithms=[JWT_ALGORITHM])
-
+        return payload
     except JWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Login First")

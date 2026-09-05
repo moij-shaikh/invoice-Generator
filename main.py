@@ -6,11 +6,11 @@ from routers import user
 
 @asynccontextmanager
 async def lifespan(app:FastAPI):
-    app.state.arq_redis= create_pool(RedisSettings())
+    app.state.arq= create_pool(RedisSettings())
     yield
-    await app.state.arq_redis.close()
+    await app.state.arq.close()
 
 
 
-app=FastAPI()
+app=FastAPI(lifespan=lifespan)
 app.include_router(user.router)
