@@ -12,7 +12,7 @@ from redis_client import redis
 import secrets
 from datetime import datetime , timedelta , timezone
 
-from services.user_auth import make_access_token , make_refresh_token , get_current_user_payload
+from services.user_auth import make_access_token , make_refresh_token , get_current_user_payload , user__logout , refresh_endpoint
 from services.utils import pass_hasher
 
 router=APIRouter(prefix="/user")
@@ -44,7 +44,7 @@ async def user__register_new_user(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail="Database Is Down.")
 
 @router.delete("")
-async def user__update_info(
+async def user__delete(
     res:Response,
     user_id:int=Form(),
     email:str=Form(),
@@ -108,75 +108,20 @@ async def user__login(
     refresh_token=make_refresh_token(db_user.id,token_id=token_id,role="user")
     res.set_cookie(key="refresh_token",value=refresh_token,samesite="strict",httponly=True,max_age=60*60*24*10)
     await redis.set(f"refresh_token:{token_id}",db_user.id,ex=60*60*24*10)
+    db_user.last_login=datetime.now(timezone.utc)
     return {
         "token_type":"bearer",
         "access_token":access_token
     }
 
-@router.post("/business")
-async def user__add_business(
-    business_name:str=Form(),
-    owner_name:str=Form(),
-    email:str=Form(),
-    phone:str=Form(),
-    website:str=Form(),
-    address_line1:str=Form(),
-    address_line2:str=Form(),
-    city:str=Form(),
-    state:str=Form(),
-    country:str=Form(),
-    currency:str=Form(),
-    payload:dict=Depends(get_current_user_payload),
-    db:AsyncSession=Depends(get_db)
-    ):
-    business = Business(
-        user_id=payload.get("sub"),
-        business_name=business_name,
-        owner_name=owner_name,
-        email=email,
-        phone=phone,
-        website=website,
-        address_line1=address_line1,
-        address_line2=address_line2,
-        city=city,
-        state=state,
-        country=country,
-        currency=currency,
-        create_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
-    )
-    try:
-        db.add(business)
-        await db.commit()
-        return{
-            "message":f"{business_name} was successfully Registered."
-        }
-    except SQLAlchemyError:
-        await db.rollback()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail="Database Is Down.")
-
-@router.get("/business")
-async def user__get_business(db:AsyncSession=Depends(get_db),payload:dict=Depends(get_current_user_payload)):
-    user_id=int(payload.get("sub"))
-    db_business= await db.scalars(select(Business).where(Business.user_id == user_id))
-    db_business_list=db_business.all()
-    if not db_business_list:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Business Found.")
-    return db_business_list
-
-@router.delete("/business/{id}")
-async def user__delete_business(id:int=Path(gt=0),db:AsyncSession=Depends(get_db),payload:dict=Depends(get_current_user_payload)):
-    user_id=int(payload.get("sub"))
-    db_business= await db.scalar(select(Business).where(Business.user_id == user_id , Business.id == id))
-    if not db_business:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Business Found.")
-    try:
-        await db.delete(db_business)
-        return {
-            "message":f"{db_business.business_name} was successfully deleted"
-        }
-    except SQLAlchemyError:
-        await db.rollback()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail="Database Is Down.")
-
-
+@router.post("/logout")
+async def user__logout(payload:dict=Depends(get_current_user_payload),message:str=Depends(user__logout)):
+    return {
+        "message":message
+    }
+@router.post("/refresh")
+async def user__refresh_token(token:str=Depends(refresh_endpoint)):
+    return {
+        "token_type":"bearer",
+        "access_token":token
+    }
