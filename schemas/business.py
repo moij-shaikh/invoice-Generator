@@ -13,6 +13,7 @@ class NewBusiness(BaseModel):
     country:str
     currency:str
 class UpdateBusiness(BaseModel):
+    gst_number:str|None=Field(default=None)
     business_name:str|None=Field(default=None)
     owner_name:str|None=Field(default=None)
     email:str|None=Field(default=None)

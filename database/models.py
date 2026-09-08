@@ -1,4 +1,4 @@
-from sqlalchemy.orm import DeclarativeBase , Mapped , mapped_column
+from sqlalchemy.orm import DeclarativeBase , Mapped , mapped_column,relationship
 from sqlalchemy import DateTime , ForeignKey
 from datetime import datetime
 class Base(DeclarativeBase):
@@ -15,11 +15,13 @@ class User(Base):
     create_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
     updated_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
     last_login:Mapped[datetime]=mapped_column(DateTime(timezone=True))
+    business:Mapped["Business"]=relationship("Business",back_populates="user")
 
 class Business(Base):
     __tablename__="business"
     id:Mapped[int]=mapped_column(primary_key=True)
     user_id:Mapped[int]=mapped_column(ForeignKey("users.id",ondelete="CASCADE"))
+    gst_number:Mapped[str]
     business_name:Mapped[str]
     owner_name:Mapped[str]
     email:Mapped[str]=mapped_column(unique=True)
@@ -33,3 +35,30 @@ class Business(Base):
     currency:Mapped[str]
     create_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
     updated_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
+    user:Mapped["User"]=relationship("User",back_populates="business")
+    clients:Mapped[list["Client"]]=relationship("Client",back_populates="business")
+
+class Client(Base):
+    __tablename__="client"
+    id:Mapped[int]=mapped_column(primary_key=True)
+    business_id:Mapped[int]=mapped_column(ForeignKey("business.id",ondelete='CASCADE'))
+    name:Mapped[str]
+    email:Mapped[str]
+    phone:Mapped[str]
+    address_line1:Mapped[str]
+    address_line2:Mapped[str]
+    city:Mapped[str]
+    state:Mapped[str]
+    country:Mapped[str]
+    notes:Mapped[str]
+    create_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
+    updated_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
+    business:Mapped["Business"]=relationship("Business",back_populates="clients")
+
+# class Work(Base):
+#     __tablename__="works"
+#     id:Mapped[int]=mapped_column(primary_key=True)
+#     start_date:Mapped[datetime]=mapped_column(DateTime(timezone=True))
+#     end_date:Mapped[datetime]=mapped_column(DateTime(timezone=True))
+#     work:Mapped[str]
+#     note:Mapped[str]

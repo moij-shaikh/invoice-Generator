@@ -25,6 +25,7 @@ async def business__new(
     state:str=Form(),
     country:str=Form(),
     currency:str=Form(),
+    gst_number:str=Form(),
     payload:dict=Depends(get_current_user_payload),
     db:AsyncSession=Depends(get_db)
     ):
@@ -32,6 +33,7 @@ async def business__new(
         user_id=payload.get("sub"),
         business_name=business_name,
         owner_name=owner_name,
+        gst_number=gst_number,
         email=email,
         phone=phone,
         website=website,
@@ -44,15 +46,15 @@ async def business__new(
         create_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),
     )
-    try:
-        db.add(business)
-        await db.commit()
-        return{
-            "message":f"{business_name} was successfully Registered."
-        }
-    except SQLAlchemyError:
-        await db.rollback()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail="Database Is Down.")
+    # try:
+    db.add(business)
+    await db.commit()
+    return{
+        "message":f"{business_name} was successfully Registered."
+    }
+    # except SQLAlchemyError:
+    #     await db.rollback()
+    #     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail="Database Is Down.")
 
 @router.get("/business")
 async def user__get_business(db:AsyncSession=Depends(get_db),payload:dict=Depends(get_current_user_payload)):
@@ -79,6 +81,20 @@ async def business__delete(id:int=Path(gt=0),db:AsyncSession=Depends(get_db),pay
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail="Database Is Down.")
 
-@router.patch("/business")
-async def business__update(user_data:UpdateBusiness):
-    pass
+@router.patch("/business/{id}")
+async def business__update(id:int,user_data:UpdateBusiness,db:AsyncSession=Depends(get_db),payload:dict=Depends(get_current_user_payload)):
+    user_id=int(payload.get("sub"))
+    db_business= await db.scalar(select(Business).where(Business.user_id==user_id , Business.id==id))
+    data=user_data.model_dump(exclude_unset=True)
+    for field , value in data.items():
+        setattr(db_business,field,value)
+    try:
+        await db.commit()
+        return {
+            "message":"New Values are set."
+        }
+
+    except SQLAlchemyError:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail="Database Is Down.")
+

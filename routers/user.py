@@ -17,7 +17,7 @@ from services.utils import pass_hasher
 
 router=APIRouter(prefix="/user")
 
-@router.post("")
+@router.post("",tags=["User"])
 async def user__register_new_user(
     req:Request,
     email:str=Form(),
@@ -64,7 +64,7 @@ async def user__delete(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail="Database Is Down.")
 
 
-@router.get("/verifies")
+@router.get("/verifies",tags=["Auth"])
 async def user__verify_email(
     token:str,
     db:AsyncSession=Depends(get_db)
@@ -85,7 +85,7 @@ async def user__verify_email(
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail="Database Is Down.")
 
-@router.post("/login")
+@router.post("/login",tags=["User"])
 async def user__login(
     res:Response,
     form_data:OAuth2PasswordRequestForm=Depends(),
@@ -114,12 +114,12 @@ async def user__login(
         "access_token":access_token
     }
 
-@router.post("/logout")
+@router.post("/logout",tags=["User"])
 async def user__logout(payload:dict=Depends(get_current_user_payload),message:str=Depends(user__logout)):
     return {
         "message":message
     }
-@router.post("/refresh")
+@router.post("/refresh",tags=["Auth"])
 async def user__refresh_token(token:str=Depends(refresh_endpoint)):
     return {
         "token_type":"bearer",
