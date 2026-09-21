@@ -74,9 +74,16 @@ class Job(Base):
     id:Mapped[int]=mapped_column(primary_key=True)
     business_id:Mapped[int]=mapped_column(ForeignKey("business.id",ondelete="CASCADE"))
     client_id:Mapped[int]=mapped_column(ForeignKey("client.id",ondelete="CASCADE"))
+    job_status:Mapped[str]
+    total_price:Mapped[int]
     title:Mapped[str]
     work:Mapped[str]
     note:Mapped[str]
     created_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
     start_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
     end_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
+class JobServices(Base):
+    __tablename__="jobservices"
+    id:Mapped[int]=mapped_column(primary_key=True)
+    job_id:Mapped[int]=mapped_column(ForeignKey("jobs.id",ondelete="CASCADE"))
+    service_id:Mapped[int]=mapped_column(ForeignKey("services.id",ondelete="CASCADE"))

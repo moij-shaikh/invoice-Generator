@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from redis_client import redis
 from datetime import datetime , timedelta , timezone
 
-from schemas.business import NewBusiness , UpdateBusiness
+from schemas.business import GetBusiness , UpdateBusiness
 from services.user_auth import get_current_user_payload
 router=APIRouter(tags=["Business"])
 @router.post("/business")
@@ -60,7 +60,7 @@ async def business__new(
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail="Database Is Down.")
 
-@router.get("/business")
+@router.get("/business",response_model=list[GetBusiness])
 async def user__get_business(db:AsyncSession=Depends(get_db),payload:dict=Depends(get_current_user_payload)):
     user_id=int(payload.get("sub"))
     db_business= await db.scalars(select(Business).where(Business.user_id == user_id))
@@ -93,9 +93,10 @@ async def business__update(id:int,user_data:UpdateBusiness,db:AsyncSession=Depen
     for field , value in data.items():
         setattr(db_business,field,value)
     try:
+        db_business.updated_at=datetime.now(timezone.utc)
         await db.commit()
         return {
-            "message":"New Values are set."
+            "message":f"{db_business.id} was updated."
         }
 
     except SQLAlchemyError:

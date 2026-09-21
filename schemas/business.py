@@ -1,6 +1,6 @@
 from pydantic import BaseModel , Field
 
-class NewBusiness(BaseModel):
+class GetBusiness(BaseModel):
     business_name:str
     owner_name:str
     email:str

@@ -12,6 +12,17 @@ class NewClient(BaseModel):
     country:str
     notes:str
 
+class GetClient(BaseModel):
+    name:str
+    email:str
+    phone:str
+    address_line1:str
+    address_line2:str
+    city:str
+    state:str
+    country:str
+    notes:str
+
 class UpdateClient(BaseModel):
     name:str|None=None
     email:str|None=None
