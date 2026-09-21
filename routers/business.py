@@ -11,7 +11,7 @@ from datetime import datetime , timedelta , timezone
 
 from schemas.business import NewBusiness , UpdateBusiness
 from services.user_auth import get_current_user_payload
-router=APIRouter()
+router=APIRouter(tags=["Business"])
 @router.post("/business")
 async def business__new(
     business_name:str=Form(),
@@ -29,8 +29,12 @@ async def business__new(
     payload:dict=Depends(get_current_user_payload),
     db:AsyncSession=Depends(get_db)
     ):
+    user_id=int(payload.get("sub"))
+    existing= await db.scalar(select(Business).where(Business.user_id==user_id))
+    if existing:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT,detail="An Business is Already Registered.")
     business = Business(
-        user_id=payload.get("sub"),
+        user_id=user_id,
         business_name=business_name,
         owner_name=owner_name,
         gst_number=gst_number,
@@ -46,15 +50,15 @@ async def business__new(
         create_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),
     )
-    # try:
-    db.add(business)
-    await db.commit()
-    return{
-        "message":f"{business_name} was successfully Registered."
-    }
-    # except SQLAlchemyError:
-    #     await db.rollback()
-    #     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail="Database Is Down.")
+    try:
+        db.add(business)
+        await db.commit()
+        return{
+            "message":f"{business_name} was successfully Registered."
+        }
+    except SQLAlchemyError:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail="Database Is Down.")
 
 @router.get("/business")
 async def user__get_business(db:AsyncSession=Depends(get_db),payload:dict=Depends(get_current_user_payload)):

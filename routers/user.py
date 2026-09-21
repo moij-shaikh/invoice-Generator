@@ -43,9 +43,8 @@ async def user__register_new_user(
     except SQLAlchemyError:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail="Database Is Down.")
 
-@router.delete("")
+@router.delete("",tags=["User"])
 async def user__delete(
-    res:Response,
     user_id:int=Form(),
     email:str=Form(),
     password:str=Form(),

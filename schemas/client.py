@@ -11,7 +11,14 @@ class NewClient(BaseModel):
     state:str
     country:str
     notes:str
-    create_at:datetime
-    updated_at:datetime
 
-
+class UpdateClient(BaseModel):
+    name:str|None=None
+    email:str|None=None
+    phone:str|None=None
+    address_line1:str|None=None
+    address_line2:str|None=None
+    city:str|None=None
+    state:str|None=None
+    country:str|None=None
+    notes:str|None=None

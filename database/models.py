@@ -21,14 +21,14 @@ class Business(Base):
     __tablename__="business"
     id:Mapped[int]=mapped_column(primary_key=True)
     user_id:Mapped[int]=mapped_column(ForeignKey("users.id",ondelete="CASCADE"))
-    gst_number:Mapped[str]
+    gst_number:Mapped[str | None]=mapped_column(default=None)
     business_name:Mapped[str]
     owner_name:Mapped[str]
     email:Mapped[str]=mapped_column(unique=True)
     phone:Mapped[str]
-    website:Mapped[str]
+    website:Mapped[str| None]=mapped_column(default=None)
     address_line1:Mapped[str]
-    address_line2:Mapped[str]
+    address_line2:Mapped[str | None]=mapped_column(default=None)
     city:Mapped[str]
     state:Mapped[str]
     country:Mapped[str]
@@ -46,7 +46,7 @@ class Client(Base):
     email:Mapped[str]
     phone:Mapped[str]
     address_line1:Mapped[str]
-    address_line2:Mapped[str]
+    address_line2:Mapped[str| None]=mapped_column(default=None)
     city:Mapped[str]
     state:Mapped[str]
     country:Mapped[str]
@@ -55,10 +55,28 @@ class Client(Base):
     updated_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
     business:Mapped["Business"]=relationship("Business",back_populates="clients")
 
-# class Work(Base):
-#     __tablename__="works"
-#     id:Mapped[int]=mapped_column(primary_key=True)
-#     start_date:Mapped[datetime]=mapped_column(DateTime(timezone=True))
-#     end_date:Mapped[datetime]=mapped_column(DateTime(timezone=True))
-#     work:Mapped[str]
-#     note:Mapped[str]
+class Services(Base):
+    __tablename__="services"
+    id:Mapped[int]=mapped_column(primary_key=True)
+    business_id:Mapped[int]=mapped_column(ForeignKey("business.id",ondelete="CASCADE"))
+    name:Mapped[str]
+    description:Mapped[str]
+    pricing_type:Mapped[str]
+    price:Mapped[float]
+    unit:Mapped[str]
+    gst_percentage:Mapped[float]
+    is_active:Mapped[bool]
+    create_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
+    update_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
+
+class Job(Base):
+    __tablename__="jobs"
+    id:Mapped[int]=mapped_column(primary_key=True)
+    business_id:Mapped[int]=mapped_column(ForeignKey("business.id",ondelete="CASCADE"))
+    client_id:Mapped[int]=mapped_column(ForeignKey("client.id",ondelete="CASCADE"))
+    title:Mapped[str]
+    work:Mapped[str]
+    note:Mapped[str]
+    created_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
+    start_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
+    end_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
