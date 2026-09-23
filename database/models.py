@@ -82,6 +82,7 @@ class Job(Base):
     created_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
     start_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
     end_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
+
 class JobServices(Base):
     __tablename__="jobservices"
     id:Mapped[int]=mapped_column(primary_key=True)

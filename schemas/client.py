@@ -13,6 +13,7 @@ class NewClient(BaseModel):
     notes:str
 
 class GetClient(BaseModel):
+    id:int
     name:str
     email:str
     phone:str
