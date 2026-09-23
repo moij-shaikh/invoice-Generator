@@ -54,6 +54,7 @@ class Client(Base):
     create_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
     updated_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
     business:Mapped["Business"]=relationship("Business",back_populates="clients")
+    jobs:Mapped[list["Job"]]=relationship("Job",back_populates="client")
 
 class Services(Base):
     __tablename__="services"
@@ -82,9 +83,12 @@ class Job(Base):
     created_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
     start_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
     end_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
+    client:Mapped["Client"]=relationship("Client",back_populates="jobs")
+    services:Mapped[list["JobServices"]]=relationship("JobServices",back_populates="job")
 
 class JobServices(Base):
     __tablename__="jobservices"
     id:Mapped[int]=mapped_column(primary_key=True)
     job_id:Mapped[int]=mapped_column(ForeignKey("jobs.id",ondelete="CASCADE"))
     service_id:Mapped[int]=mapped_column(ForeignKey("services.id",ondelete="CASCADE"))
+    job:Mapped["Job"]=relationship("Job",back_populates="services")

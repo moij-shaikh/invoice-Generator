@@ -39,7 +39,7 @@ async def job__new(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="One or more services were not found.")
     total_price=0
     for service in db_services_list:
-         total_price+=service.price
+        total_price+=service.price
     new_job=Job(
         business_id=db_business.id,
         client_id=db_client.id,
@@ -62,6 +62,43 @@ async def job__new(
                 service_id=service.id
             )
         )
-    db.add_all(new_db_services)
-    await db.commit()
-    return "ok"
+    try:
+        db.add_all(new_db_services)
+        await db.commit()
+        return{
+            "message":f"{new_job.id}"
+        }
+    except SQLAlchemyError:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail="DataBase is Down. ")
+
+@router.get("/job")
+async def job__get(payload:dict=Depends(get_current_user_payload),db:AsyncSession=Depends(get_db)):
+    user_id=int(payload.get("sub"))
+    db_jobs= await db.scalars(select(Job).where(Job.client.has(Client.business.has(Business.user_id == user_id))))
+    db_jobs_list=db_jobs.all()
+    return db_jobs_list
+@router.get("/job/{id}")
+async def job__get_id(id:int,db:AsyncSession=Depends(get_db),payload:dict=Depends(get_current_user_payload)):
+    user_id=int(payload.get("sub"))
+    # selectinload
+    db_jobs= await db.scalars(
+        select(Job).where(
+            Job.id==id,Job.client.has(
+                Client.business.has(Business.user_id==user_id)
+                )
+            ).options(
+                selectinload(Job.services)
+            )
+        )
+    db_jobs_list=db_jobs.all()
+    display_list=[]
+    for job in db_jobs_list:
+        display_list.append(
+            {
+                "id":job.id,
+                "services":job.services
+            }
+        )
+
+    return display_list
