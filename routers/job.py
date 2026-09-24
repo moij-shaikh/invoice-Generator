@@ -10,6 +10,7 @@ from services.user_auth import get_current_user_payload
 
 from datetime import datetime, timezone
 
+from schemas.job import Update
 router=APIRouter()
 
 @router.post("/job")
@@ -112,3 +113,68 @@ async def job__get_id(id:int,db:AsyncSession=Depends(get_db),payload:dict=Depend
         ]
     }
     return display_list
+
+@router.delete("/job/{id}")
+async def job__delete(id:int,payload:dict=Depends(get_current_user_payload),db:AsyncSession=Depends(get_db)):
+    user_id=int(payload.get("sub"))
+    db_job= await db.scalar(select(Job).join(Business).where(Job.id == id,Business.user_id == user_id))
+    try:
+        await db.delete(db_job)
+        await db.commit()
+        return {
+            "message":"Job was deleted"
+        }
+    except SQLAlchemyError:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail="DataBase is Down.")
+
+@router.patch("/jobs/{id}")
+async def job__update(id:int,user_data:Update,payload:dict=Depends(get_current_user_payload),db:AsyncSession=Depends(get_db)):
+    json_data=user_data.model_dump(exclude_none=True)
+    user_id=int(payload.get("sub"))
+    db_job= await db.scalar(select(Job).join(Business, Business.id == Job.business_id).where(Job.id == id, Business.user_id == user_id))
+    if not db_job:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Jobs Found")
+
+    for field , value in json_data.items():
+        setattr(db_job,field, value)
+    try:
+        await db.commit()
+        return {
+            "message":"New Values are added. "
+        }
+    except SQLAlchemyError:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail="DataBase is Down.")
+    
+@router.patch("/job/{id}/service/{service_id}")
+async def job__update_services(id:int,service_id:int,new_service:int=Form(),payload:dict=Depends(get_current_user_payload),db:AsyncSession=Depends(get_db)):
+    user_id=int(payload.get("sub"))
+        
+    previous_service = await db.get(Services, service_id)
+    if not previous_service:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Service Found. ")
+    
+    db_job= await db.scalar(select(Job).join(Business,Business.id == Job.business_id).where(Job.id == id,Business.user_id == user_id))
+    if not db_job:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Job Found. ")
+    db_check = await db.scalar(select(Services).where(Services.id==new_service,Services.business_id==db_job.business_id))
+    if not db_check:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Service Found. ")
+    db_job_service= await db.scalar(select(JobServices).join(Job,JobServices.job_id == Job.id
+    ).join(Business,Business.id == Job.business_id).where(JobServices.job_id == id,JobServices.service_id == service_id, Business.user_id == user_id))
+    if not db_job_service:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail=f"No Job Found with Service id: {id}. ")
+    new_total=(db_job.total_price - previous_service.price) + db_check.price
+    try:
+        db_job.total_price = new_total
+        db_job_service.service_id = db_check.id
+        await db.commit()
+
+        return {
+            "message":"Service updated successfully. "
+            }
+    except SQLAlchemyError:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail="DataBase is Down.")
+
