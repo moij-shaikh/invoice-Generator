@@ -75,30 +75,40 @@ async def job__new(
 @router.get("/job")
 async def job__get(payload:dict=Depends(get_current_user_payload),db:AsyncSession=Depends(get_db)):
     user_id=int(payload.get("sub"))
+
     db_jobs= await db.scalars(select(Job).where(Job.client.has(Client.business.has(Business.user_id == user_id))))
     db_jobs_list=db_jobs.all()
+
     return db_jobs_list
+
 @router.get("/job/{id}")
 async def job__get_id(id:int,db:AsyncSession=Depends(get_db),payload:dict=Depends(get_current_user_payload)):
     user_id=int(payload.get("sub"))
-    # selectinload
-    db_jobs= await db.scalars(
-        select(Job).where(
-            Job.id==id,Job.client.has(
-                Client.business.has(Business.user_id==user_id)
-                )
-            ).options(
-                selectinload(Job.services)
-            )
-        )
-    db_jobs_list=db_jobs.all()
-    display_list=[]
-    for job in db_jobs_list:
-        display_list.append(
-            {
-                "id":job.id,
-                "services":job.services
-            }
-        )
+    db_job= await db.scalar(select(Job).where(Job.id==id))
+    if not db_job:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Jobs Found")
+    db_services= await db.scalars(select(Services).join(JobServices,JobServices.service_id == Services.id).where(JobServices.job_id == id))
+    db_services_list=db_services.all()
 
+    display_list={
+        "job id":db_job.id,
+        "title":db_job.title,
+        "work":db_job.work,
+        "note":db_job.note,
+        "created at":db_job.created_at,
+        "started at":db_job.start_at,
+        "end at":db_job.end_at,
+        "total":db_job.total_price,
+        "services":[
+            {
+                "services id" : service.id,
+                "name":service.name,
+                "pricing_type":service.pricing_type,
+                "unit":service.unit,
+                "price":service.price
+            }
+            for service in db_services_list
+
+        ]
+    }
     return display_list

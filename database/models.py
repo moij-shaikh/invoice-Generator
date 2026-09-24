@@ -69,6 +69,7 @@ class Services(Base):
     is_active:Mapped[bool]
     create_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
     update_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
+    jobservice:Mapped[list["JobServices"]]=relationship("JobServices",back_populates="services")
 
 class Job(Base):
     __tablename__="jobs"
@@ -92,3 +93,4 @@ class JobServices(Base):
     job_id:Mapped[int]=mapped_column(ForeignKey("jobs.id",ondelete="CASCADE"))
     service_id:Mapped[int]=mapped_column(ForeignKey("services.id",ondelete="CASCADE"))
     job:Mapped["Job"]=relationship("Job",back_populates="services")
+    services:Mapped[list["Services"]]=relationship("Services",back_populates="jobservice")
