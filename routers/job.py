@@ -11,6 +11,7 @@ from services.user_auth import get_current_user_payload
 from datetime import datetime, timezone
 
 from schemas.job import Update
+
 router=APIRouter()
 
 @router.post("/job")
@@ -83,7 +84,7 @@ async def job__get(payload:dict=Depends(get_current_user_payload),db:AsyncSessio
     return db_jobs_list
 
 @router.get("/job/{id}")
-async def job__get_id(id:int,db:AsyncSession=Depends(get_db),payload:dict=Depends(get_current_user_payload)):
+async def job__get_id(id:int=Path(ge=0),db:AsyncSession=Depends(get_db),payload:dict=Depends(get_current_user_payload)):
     user_id=int(payload.get("sub"))
     db_job= await db.scalar(select(Job).where(Job.id==id))
     if not db_job:
@@ -115,7 +116,7 @@ async def job__get_id(id:int,db:AsyncSession=Depends(get_db),payload:dict=Depend
     return display_list
 
 @router.delete("/job/{id}")
-async def job__delete(id:int,payload:dict=Depends(get_current_user_payload),db:AsyncSession=Depends(get_db)):
+async def job__delete(id:int=Path(ge=0),payload:dict=Depends(get_current_user_payload),db:AsyncSession=Depends(get_db)):
     user_id=int(payload.get("sub"))
     db_job= await db.scalar(select(Job).join(Business).where(Job.id == id,Business.user_id == user_id))
     try:
@@ -129,7 +130,7 @@ async def job__delete(id:int,payload:dict=Depends(get_current_user_payload),db:A
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail="DataBase is Down.")
 
 @router.patch("/jobs/{id}")
-async def job__update(id:int,user_data:Update,payload:dict=Depends(get_current_user_payload),db:AsyncSession=Depends(get_db)):
+async def job__update(user_data:Update,id:int=Path(ge=0),payload:dict=Depends(get_current_user_payload),db:AsyncSession=Depends(get_db)):
     json_data=user_data.model_dump(exclude_none=True)
     user_id=int(payload.get("sub"))
     db_job= await db.scalar(select(Job).join(Business, Business.id == Job.business_id).where(Job.id == id, Business.user_id == user_id))
@@ -138,7 +139,9 @@ async def job__update(id:int,user_data:Update,payload:dict=Depends(get_current_u
 
     for field , value in json_data.items():
         setattr(db_job,field, value)
+    
     try:
+        db_job.update_at=datetime.now(timezone.utc)
         await db.commit()
         return {
             "message":"New Values are added. "
@@ -148,7 +151,7 @@ async def job__update(id:int,user_data:Update,payload:dict=Depends(get_current_u
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail="DataBase is Down.")
     
 @router.patch("/job/{id}/service/{service_id}")
-async def job__update_services(id:int,service_id:int,new_service:int=Form(),payload:dict=Depends(get_current_user_payload),db:AsyncSession=Depends(get_db)):
+async def job__update_services(service_id:int,id:int=Path(ge=0),new_service:int=Form(),payload:dict=Depends(get_current_user_payload),db:AsyncSession=Depends(get_db)):
     user_id=int(payload.get("sub"))
         
     previous_service = await db.get(Services, service_id)
@@ -169,6 +172,7 @@ async def job__update_services(id:int,service_id:int,new_service:int=Form(),payl
     try:
         db_job.total_price = new_total
         db_job_service.service_id = db_check.id
+        db_job.update_at=datetime.now(timezone.utc)
         await db.commit()
 
         return {

@@ -84,6 +84,7 @@ class Job(Base):
     created_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
     start_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
     end_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
+    update_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
     client:Mapped["Client"]=relationship("Client",back_populates="jobs")
     services:Mapped[list["JobServices"]]=relationship("JobServices",back_populates="job")
 
@@ -94,3 +95,15 @@ class JobServices(Base):
     service_id:Mapped[int]=mapped_column(ForeignKey("services.id",ondelete="CASCADE"))
     job:Mapped["Job"]=relationship("Job",back_populates="services")
     services:Mapped[list["Services"]]=relationship("Services",back_populates="jobservice")
+
+class Quotation(Base):
+    __tablename__="quotation"
+    id:Mapped[int]=mapped_column(primary_key=True)
+    business_id:Mapped[int]=mapped_column(ForeignKey("business.id"))
+    client_id:Mapped[int]=mapped_column(ForeignKey("client.id"))
+    job_id:Mapped[int]=mapped_column(ForeignKey("jobs.id"))
+    total:Mapped[float]
+    discount:Mapped[float]
+    status:Mapped[str]
+    create_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
+    update_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
