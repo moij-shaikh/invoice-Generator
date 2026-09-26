@@ -1,4 +1,5 @@
 from pydantic import BaseModel , Field
 
 class UpdateQuotation(BaseModel):
-    pass
+    discount:int | None =None
+    status:str|None =None

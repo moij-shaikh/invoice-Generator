@@ -37,6 +37,7 @@ class Business(Base):
     updated_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
     user:Mapped["User"]=relationship("User",back_populates="business")
     clients:Mapped[list["Client"]]=relationship("Client",back_populates="business")
+    quotation:Mapped[list["Quotation"]]=relationship("Quotation",back_populates="business")
 
 class Client(Base):
     __tablename__="client"
@@ -107,3 +108,16 @@ class Quotation(Base):
     status:Mapped[str]
     create_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
     update_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
+    business:Mapped["Business"]=relationship("Business",back_populates="quotation")
+    invoice:Mapped["Invoice"]=relationship("Invoice",back_populates="quotation")
+
+class Invoice(Base):
+    __tablename__="invoice"
+    id:Mapped[int]=mapped_column(primary_key=True)
+    quotation_id:Mapped[int]=mapped_column(ForeignKey("quotation.id",ondelete="CASCADE"),unique=True)
+    invoice_number:Mapped[int]
+    created_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
+    status:Mapped[str]
+    due_date:Mapped[datetime | None]=mapped_column(DateTime(timezone=True),default=None)
+    updated_at:Mapped[datetime | None]=mapped_column(DateTime(timezone=True),default=None)
+    quotation:Mapped["Quotation"]=relationship("Quotation",back_populates="invoice")

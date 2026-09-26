@@ -7,7 +7,8 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from services.user_auth import get_current_user_payload
-
+# 
+from schemas.Quotation import UpdateQuotation
 from datetime import datetime, timezone
 
 router=APIRouter()
@@ -29,9 +30,8 @@ async def quotation__new(
         Job.id == job_id
     ))
     if not db_job:
-        raise HTTPException(status_cde=status.HTTP_404_NOT_FOUND,detail="No Jobs Found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Jobs Found")
     new_quotation=Quotation(
-        user_id = user_id,
         business_id=business_id,
         client_id = client_id,
         job_id = job_id,
@@ -54,7 +54,7 @@ async def quotation__display_all(db:AsyncSession=Depends(get_db),payload:dict=De
     db_quotations= await db.scalars(select(Quotation).join(Business,Business.id == Quotation.business_id).where(Business.user_id == user_id))
     db_quotations_list=db_quotations.all()
     if not db_quotations_list:
-        raise HTTPException(status_cde=status.HTTP_404_NOT_FOUND,detail="No Data Found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Data Found")
     return db_quotations_list
 
 
@@ -63,7 +63,7 @@ async def quotation__display_all(id:int,db:AsyncSession=Depends(get_db),payload:
     user_id=int(payload.get("sub"))
     db_quotations= await db.scalar(select(Quotation).join(Business,Business.id == Quotation.business_id).where(Business.user_id == user_id,Quotation.id ==id))
     if not db_quotations:
-        raise HTTPException(status_cde=status.HTTP_404_NOT_FOUND,detail="No Data Found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Data Found")
     return db_quotations
 
 
@@ -72,7 +72,7 @@ async def quotation__display_all(id:int,db:AsyncSession=Depends(get_db),payload:
     user_id=int(payload.get("sub"))
     db_quotations= await db.scalar(select(Quotation).join(Business,Business.id == Quotation.business_id).where(Business.user_id == user_id,Quotation.id ==id))
     if not db_quotations:
-        raise HTTPException(status_cde=status.HTTP_404_NOT_FOUND,detail="No Data Found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Data Found")
     try: 
         await db.delete(db_quotations)
         await db.commit()
@@ -81,7 +81,24 @@ async def quotation__display_all(id:int,db:AsyncSession=Depends(get_db),payload:
         }
     except SQLAlchemyError:
         await db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail="DataBase is Down.")
+
 
 @router.patch("/Quotation/{id}")
-async def Quotation__update(payload:dict=Depends(get_current_user_payload),db:AsyncSession=Depends(get_db)):
+async def Quotation__update(id:int,updated_data:UpdateQuotation,payload:dict=Depends(get_current_user_payload),db:AsyncSession=Depends(get_db)):
     user_id=int(payload.get("sub"))
+    filled_data = updated_data.model_dump(exclude_none=True)
+    db_quotation= await db.scalar(select(Quotation).join(Business).where(Quotation.id ==id, Business.user_id == user_id))
+    if not db_quotation:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Data Found")
+    for field , value in filled_data.items():
+        setattr(db_quotation , field, value)
+    try:
+        await db.commit()
+        return {
+            "message":"Quotation is updated. "
+        }
+    except SQLAlchemyError:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail="DataBase is Down.")
+
