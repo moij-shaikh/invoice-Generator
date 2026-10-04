@@ -1,4 +1,4 @@
-async def send_verification_email(otp,email):
+async def send_verification_email(ctx,otp,email):
     import smtplib
     from email.message import EmailMessage
 
@@ -9,3 +9,6 @@ async def send_verification_email(otp,email):
     msg.add_alternative(f"<a href=''>Click</a>",subtype="html")
     with smtplib.SMTP_SSL("smtp.gmail.com",465) as smtp:
         smtp.login("sender","pass")
+
+async def MakeJob(ctx):
+    pass

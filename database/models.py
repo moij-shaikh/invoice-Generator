@@ -35,6 +35,9 @@ class Business(Base):
     currency:Mapped[str]
     create_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
     updated_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
+    thumbnail:Mapped[str|None]=mapped_column(default=None)
+    title:Mapped[str]
+
     user:Mapped["User"]=relationship("User",back_populates="business")
     clients:Mapped[list["Client"]]=relationship("Client",back_populates="business")
     quotation:Mapped[list["Quotation"]]=relationship("Quotation",back_populates="business")
@@ -43,6 +46,7 @@ class Client(Base):
     __tablename__="client"
     id:Mapped[int]=mapped_column(primary_key=True)
     business_id:Mapped[int]=mapped_column(ForeignKey("business.id",ondelete='CASCADE'))
+
     name:Mapped[str]
     email:Mapped[str]
     phone:Mapped[str]
@@ -52,10 +56,12 @@ class Client(Base):
     state:Mapped[str]
     country:Mapped[str]
     notes:Mapped[str]
+
     create_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
     updated_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
+    
     business:Mapped["Business"]=relationship("Business",back_populates="clients")
-    jobs:Mapped[list["Job"]]=relationship("Job",back_populates="client")
+    jobs:Mapped[list["Job"]]=relationship("Job",back_populates="client",passive_deletes=True,passive_updates=False)
 
 class Services(Base):
     __tablename__="services"
@@ -85,7 +91,7 @@ class Job(Base):
     created_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
     start_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
     end_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
-    update_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
+    update_at:Mapped[datetime | None]=mapped_column(DateTime(timezone=True),default=None)
     client:Mapped["Client"]=relationship("Client",back_populates="jobs")
     services:Mapped[list["JobServices"]]=relationship("JobServices",back_populates="job")
 
@@ -95,17 +101,20 @@ class JobServices(Base):
     job_id:Mapped[int]=mapped_column(ForeignKey("jobs.id",ondelete="CASCADE"))
     service_id:Mapped[int]=mapped_column(ForeignKey("services.id",ondelete="CASCADE"))
     job:Mapped["Job"]=relationship("Job",back_populates="services")
-    services:Mapped[list["Services"]]=relationship("Services",back_populates="jobservice")
+    services:Mapped["Services"]=relationship("Services",back_populates="jobservice")
 
 class Quotation(Base):
     __tablename__="quotation"
     id:Mapped[int]=mapped_column(primary_key=True)
-    business_id:Mapped[int]=mapped_column(ForeignKey("business.id"))
-    client_id:Mapped[int]=mapped_column(ForeignKey("client.id"))
-    job_id:Mapped[int]=mapped_column(ForeignKey("jobs.id"))
+
+    business_id:Mapped[int]=mapped_column(ForeignKey("business.id",ondelete="CASCADE"))
+    client_id:Mapped[int]=mapped_column(ForeignKey("client.id",ondelete="CASCADE"))
+    job_id:Mapped[int]=mapped_column(ForeignKey("jobs.id",ondelete="CASCADE"))
+
     total:Mapped[float]
     discount:Mapped[float]
-    status:Mapped[str]
+    quotation_status:Mapped[str]
+
     create_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
     update_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
     business:Mapped["Business"]=relationship("Business",back_populates="quotation")
@@ -114,10 +123,33 @@ class Quotation(Base):
 class Invoice(Base):
     __tablename__="invoice"
     id:Mapped[int]=mapped_column(primary_key=True)
-    quotation_id:Mapped[int]=mapped_column(ForeignKey("quotation.id",ondelete="CASCADE"),unique=True)
+
+    business_id:Mapped[int]=mapped_column(ForeignKey("business.id",ondelete="CASCADE"))
     invoice_number:Mapped[int]
-    created_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
+
+    
+    client_id:Mapped[int]=mapped_column(ForeignKey("client.id",ondelete="CASCADE"))
+    job_id:Mapped[int]=mapped_column(ForeignKey("jobs.id",ondelete="CASCADE"))
+    total:Mapped[float]
+    discount:Mapped[float]
     status:Mapped[str]
+    start_date:Mapped[datetime]=mapped_column(DateTime(timezone=True))
     due_date:Mapped[datetime | None]=mapped_column(DateTime(timezone=True),default=None)
+    created_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
     updated_at:Mapped[datetime | None]=mapped_column(DateTime(timezone=True),default=None)
+
     quotation:Mapped["Quotation"]=relationship("Quotation",back_populates="invoice")
+
+class ServiceRequest(Base):
+    __tablename__="service_requests"
+    id:Mapped[int]=mapped_column(primary_key=True)
+    business_id:Mapped[int]=mapped_column(ForeignKey("business.id",ondelete="CASCADE"))
+    user_id:Mapped[int]=mapped_column(ForeignKey("users.id",ondelete="CASCADE"))
+    services:Mapped[str]
+    work:Mapped[str]
+    notes:Mapped[str|None]=mapped_column(default=None)
+
+    status:Mapped[str]
+    create_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
+    update_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
+

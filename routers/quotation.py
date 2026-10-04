@@ -1,54 +1,53 @@
-from fastapi import APIRouter, Request, Response,Path,status,HTTPException, Form , Depends
+from fastapi import APIRouter,status,HTTPException , Depends
 
-from database.models import Job , Services , Client , Business , JobServices , Quotation
+from database.models import Job, Business , Quotation
 from database.database import get_db
 from sqlalchemy import select 
-from sqlalchemy.orm import selectinload
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from services.user_auth import get_current_user_payload
 # 
-from schemas.Quotation import UpdateQuotation
+from schemas.quotation import NewQuotation, UpdateQuotation , ShowAllQuotation , ShowQuotation
 from datetime import datetime, timezone
 
-router=APIRouter()
+router=APIRouter(tags=["Quotation"])
 
 @router.post("/Quotation")
 async def quotation__new(
-    business_id:int=Form(ge=0),
-    client_id:int=Form(ge=0),
-    job_id:int=Form(ge=0),
-    discount:int=Form(),
+    new_quotation:NewQuotation,
     payload:dict=Depends(get_current_user_payload),
     db:AsyncSession=Depends(get_db)
     ):
     user_id=int(payload.get("sub"))
+    db_business= await db.scalar(select(Business).where(Business.user_id == user_id))
     db_job= await db.scalar(select(Job).join(Business,Business.id == Job.business_id).where(
-        Business.user_id == user_id,
-        Business.id == business_id,
-        Job.client_id == client_id,
-        Job.id == job_id
+        Business.id == db_business.id,
+        Job.client_id == new_quotation.client_id,
+        Job.id == new_quotation.job_id
     ))
     if not db_job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Jobs Found")
-    new_quotation=Quotation(
-        business_id=business_id,
-        client_id = client_id,
-        job_id = job_id,
+    db_quotation=Quotation(
+        business_id=db_business.id,
+        client_id = new_quotation.client_id,
+        job_id = new_quotation.job_id,
         total=db_job.total_price,
-        discount=discount,
-        status="quotation",
+        discount=new_quotation.discount,
+        quotation_status=new_quotation.quotation_status,
         create_at=datetime.now(timezone.utc),
         update_at=datetime.now(timezone.utc)
     )
     try: 
-        db.add(new_quotation)
+        db.add(db_quotation)
         await db.commit()
+        return{
+            "message":"New Quotation is created. "
+        }
     except SQLAlchemyError:
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail="DataBase is Down.")
 
-@router.get("/Quotation")
+@router.get("/Quotation",response_model=list[ShowAllQuotation])
 async def quotation__display_all(db:AsyncSession=Depends(get_db),payload:dict=Depends(get_current_user_payload)):
     user_id=int(payload.get("sub"))
     db_quotations= await db.scalars(select(Quotation).join(Business,Business.id == Quotation.business_id).where(Business.user_id == user_id))
@@ -58,7 +57,7 @@ async def quotation__display_all(db:AsyncSession=Depends(get_db),payload:dict=De
     return db_quotations_list
 
 
-@router.get("/Quotation/{id}")
+@router.get("/Quotation/{id}",response_model=ShowQuotation)
 async def quotation__display_all(id:int,db:AsyncSession=Depends(get_db),payload:dict=Depends(get_current_user_payload)):
     user_id=int(payload.get("sub"))
     db_quotations= await db.scalar(select(Quotation).join(Business,Business.id == Quotation.business_id).where(Business.user_id == user_id,Quotation.id ==id))

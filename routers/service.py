@@ -1,19 +1,18 @@
-from fastapi import APIRouter, Request, Response,Path,status,HTTPException, Form , Depends
+from fastapi import APIRouter ,status,HTTPException, Depends
 
-from database.models import Job , Services , Client , Business , JobServices
+from database.models import Services , Business
 from database.database import get_db
 from sqlalchemy import select 
-from sqlalchemy.orm import selectinload
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from services.user_auth import get_current_user_payload
 
-from schemas.services import NewService, UpdateService
+from schemas.services import NewService, UpdateService , ShowAllServices , ShowServices
 from datetime import datetime, timezone
 
-router= APIRouter()
+router= APIRouter(tags=["Services"])
 
-@router.get("/Services")
+@router.get("/Services", response_model=list[ShowAllServices])
 async def services__display_all(db:AsyncSession=Depends(get_db),payload:dict=Depends(get_current_user_payload)):
     user_id=int(payload.get("sub"))
     db_services= await db.scalars(select(Services).join(Business,Services.business_id == Business.id).where(Business.user_id == user_id))
@@ -21,7 +20,8 @@ async def services__display_all(db:AsyncSession=Depends(get_db),payload:dict=Dep
     if not db_services_list:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Services Found. ")
     return db_services_list
-@router.get("/Services/{id}")
+
+@router.get("/Services/{id}", response_model=ShowServices)
 async def services__display_all(id:int,db:AsyncSession=Depends(get_db),payload:dict=Depends(get_current_user_payload)):
     user_id=int(payload.get("sub"))
     db_service= await db.scalar(select(Services).join(Business,Services.business_id == Business.id).where(Business.user_id == user_id,Services.id ==id))
@@ -38,7 +38,9 @@ async def services__display_all(id:int,db:AsyncSession=Depends(get_db),payload:d
     try:
         await db.delete(db_service)
         await db.commit()
-        return db_service
+        return {
+            "message":"Service was deleted."
+        }
     except SQLAlchemyError:
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail="DB is Down.")

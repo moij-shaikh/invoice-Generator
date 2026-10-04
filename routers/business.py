@@ -1,13 +1,13 @@
-from fastapi import APIRouter, Form , Depends , Path , HTTPException , status , Request , Response
+from fastapi import APIRouter, Form , Depends , Path , HTTPException , status , File, UploadFile
 from database.database import get_db
-from database.models import User , Business
+from database.models import Business
 
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy import select 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from redis_client import redis
-from datetime import datetime , timedelta , timezone
+from datetime import datetime, timezone
 
 from schemas.business import GetBusiness , UpdateBusiness
 from services.user_auth import get_current_user_payload
@@ -26,6 +26,9 @@ async def business__new(
     country:str=Form(),
     currency:str=Form(),
     gst_number:str=Form(),
+    title:str=Form(description="Shown to public"),
+    thumbnail:UploadFile=File(None),
+    
     payload:dict=Depends(get_current_user_payload),
     db:AsyncSession=Depends(get_db)
     ):
@@ -33,6 +36,9 @@ async def business__new(
     existing= await db.scalar(select(Business).where(Business.user_id==user_id))
     if existing:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,detail="An Business is Already Registered.")
+    file_path=None
+    if thumbnail:
+        file_path=f"uploads/business/file_{user_id}"
     business = Business(
         user_id=user_id,
         business_name=business_name,
@@ -49,6 +55,8 @@ async def business__new(
         currency=currency,
         create_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),
+        title=title,
+        thumbnail=file_path
     )
     try:
         db.add(business)
@@ -102,4 +110,3 @@ async def business__update(id:int,user_data:UpdateBusiness,db:AsyncSession=Depen
     except SQLAlchemyError:
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail="Database Is Down.")
-

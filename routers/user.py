@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Form , Depends , Path , HTTPException , status , Request , Response
 from fastapi.security import OAuth2PasswordRequestForm
 from database.database import get_db
-from database.models import User , Business
+from database.models import User
 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import select 
@@ -76,6 +76,7 @@ async def user__verify_email(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No user Found")
     db_user.is_verified=True
     try:
+        db_user.updated_at=datetime.now(timezone.utc)
         await db.commit()
         return{
             "message":f"{db_user.email} you have been successfully verified"

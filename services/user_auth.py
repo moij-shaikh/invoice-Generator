@@ -57,20 +57,18 @@ async def user__logout(res:Response,req:Request):
 async def refresh_endpoint(req:Request):
     cookie=req.cookies.get("refresh_token")
     if not cookie:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="Login.")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="Login. token")
     try:
         payload=jwt.decode(cookie,JWT_SECRET_KEY,algorithms=[JWT_ALGORITHM])
         print(payload)
         token_id=payload.get("token_id")
         user_id=payload.get("sub")
-        redis_token=await redis.get(f"refresh_token{token_id}")
+        redis_token=await redis.get(f"refresh_token:{token_id}")
         if not redis_token:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="Login.")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="Login. redis")
         access_token=make_access_token(user_id)
         return access_token
     except JWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="JWT Error")
-    except ExpiredSignatureError:
-        print("TOKEN EXPIRED")
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Signature Error")
+    
 

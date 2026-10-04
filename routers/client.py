@@ -49,10 +49,10 @@ async def client__get(payload:dict=Depends(get_current_user_payload),db:AsyncSes
     return data.all()
 
 
-@router.delete("/{id}")
+@router.delete("/{id}", response_model=GetClient)
 async def client__delete(id:int=Path(ge=0),db:AsyncSession=Depends(get_db),payload:dict=Depends(get_current_user_payload)):
     user_id=int(payload.get("sub"))
-    db_client= await db.scalar(select(Client).where(Client.id==id,Client.business.has(Business.user_id==user_id)))
+    db_client= await db.scalar(select(Client).join(Business,Client.business_id == Business.id).where(Business.user_id == user_id, Client.id ==id))
     if not db_client:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Client Found")
     try:
@@ -60,7 +60,7 @@ async def client__delete(id:int=Path(ge=0),db:AsyncSession=Depends(get_db),paylo
         await db.commit()
         return {
             "message":f"{db_client.id}: {db_client.name} was deleted."
-        }
+            }
     except SQLAlchemyError:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail="Database is down.")
 
@@ -75,7 +75,6 @@ async def client__update(user_data:UpdateClient,id:int=Path(ge=0),db:AsyncSessio
         setattr(db_client,field,value)
     db_client.updated_at=datetime.now(timezone.utc)
     try:
-
         await db.commit()
         await db.refresh(db_client)
         return {
