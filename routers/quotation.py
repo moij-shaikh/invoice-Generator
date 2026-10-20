@@ -1,13 +1,13 @@
-from fastapi import APIRouter,status,HTTPException , Depends
+from fastapi import APIRouter,status,HTTPException , Depends , Path
 
-from database.models import Job, Business , Quotation
+from database.models import Job, Business , Quotation, Invoice
 from database.database import get_db
 from sqlalchemy import select 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from services.user_auth import get_current_user_payload
 # 
-from schemas.quotation import NewQuotation, UpdateQuotation , ShowAllQuotation , ShowQuotation
+from schemas.quotation import NewQuotation, UpdateQuotation , ShowAllQuotation , ShowQuotation, QuotationStatus
 from datetime import datetime, timezone
 
 router=APIRouter(tags=["Quotation"])
@@ -20,6 +20,8 @@ async def quotation__new(
     ):
     user_id=int(payload.get("sub"))
     db_business= await db.scalar(select(Business).where(Business.user_id == user_id))
+    if not db_business:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Business Found. ")
     db_job= await db.scalar(select(Job).join(Business,Business.id == Job.business_id).where(
         Business.id == db_business.id,
         Job.client_id == new_quotation.client_id,
@@ -27,13 +29,15 @@ async def quotation__new(
     ))
     if not db_job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Jobs Found")
+    if new_quotation.discount >= new_quotation.total:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Discount must be less than the total price.  ")
     db_quotation=Quotation(
         business_id=db_business.id,
         client_id = new_quotation.client_id,
         job_id = new_quotation.job_id,
-        total=db_job.total_price,
+        total=new_quotation.total,
         discount=new_quotation.discount,
-        quotation_status=new_quotation.quotation_status,
+        quotation_status=QuotationStatus.PENDING,
         create_at=datetime.now(timezone.utc),
         update_at=datetime.now(timezone.utc)
     )
@@ -52,13 +56,11 @@ async def quotation__display_all(db:AsyncSession=Depends(get_db),payload:dict=De
     user_id=int(payload.get("sub"))
     db_quotations= await db.scalars(select(Quotation).join(Business,Business.id == Quotation.business_id).where(Business.user_id == user_id))
     db_quotations_list=db_quotations.all()
-    if not db_quotations_list:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Data Found")
     return db_quotations_list
 
 
 @router.get("/Quotation/{id}",response_model=ShowQuotation)
-async def quotation__display_all(id:int,db:AsyncSession=Depends(get_db),payload:dict=Depends(get_current_user_payload)):
+async def quotation__display_all(id:int=Path(gt=0),db:AsyncSession=Depends(get_db),payload:dict=Depends(get_current_user_payload)):
     user_id=int(payload.get("sub"))
     db_quotations= await db.scalar(select(Quotation).join(Business,Business.id == Quotation.business_id).where(Business.user_id == user_id,Quotation.id ==id))
     if not db_quotations:
@@ -72,6 +74,10 @@ async def quotation__display_all(id:int,db:AsyncSession=Depends(get_db),payload:
     db_quotations= await db.scalar(select(Quotation).join(Business,Business.id == Quotation.business_id).where(Business.user_id == user_id,Quotation.id ==id))
     if not db_quotations:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Data Found")
+    existing= await db.scalar(select(Invoice).where(Invoice.quotation_id == db_quotations.id, Invoice.business_id ==Quotation.business_id ))
+    if existing is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Cannot delete a quotation that has an invoice.")
+        
     try: 
         await db.delete(db_quotations)
         await db.commit()
@@ -90,6 +96,24 @@ async def Quotation__update(id:int,updated_data:UpdateQuotation,payload:dict=Dep
     db_quotation= await db.scalar(select(Quotation).join(Business).where(Quotation.id ==id, Business.user_id == user_id))
     if not db_quotation:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Data Found")
+    if db_quotation.quotation_status == QuotationStatus.ACCEPTED:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Quotation is already accepted.you can not change it. ")
+    
+    if db_quotation.quotation_status == QuotationStatus.CANCEL:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Quotation is already cancelled.you can not change it. ")
+    new_total=(
+        updated_data.total 
+        if updated_data.total is not None
+        else db_quotation.total
+    )
+    new_discount=(
+        updated_data.discount
+        if updated_data.discount is not None
+        else db_quotation.discount
+    )
+    if new_discount >= new_total:
+            raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE, detail="Discount is greater than price. ")
+        
     for field , value in filled_data.items():
         setattr(db_quotation , field, value)
     try:

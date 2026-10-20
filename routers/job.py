@@ -19,7 +19,7 @@ async def job__new(
     payload:dict=Depends(get_current_user_payload),
     db:AsyncSession=Depends(get_db)
 ):
-    services_ids=[int(x) for x in new_job.services_ids_str.split(",")]
+    services_ids=set(new_job.services_ids_str)
     user_id=int(payload.get("sub"))
     db_business= await db.scalar(select(Business).where(Business.user_id==user_id))
     if not db_business:
@@ -51,16 +51,17 @@ async def job__new(
         total_price=total_price
     )
     db.add(new_job)
-    await db.flush()
-    new_db_services=[]
-    for service in db_services_list:
-        new_db_services.append(
-            JobServices(
-                job_id=new_job.id,
-                service_id=service.id
-            )
-        )
+    
     try:
+        await db.flush()
+        new_db_services=[]
+        for service in db_services_list:
+            new_db_services.append(
+                JobServices(
+                    job_id=new_job.id,
+                    service_id=service.id
+                )
+            )
         db.add_all(new_db_services)
         await db.commit()
         return{
@@ -115,6 +116,9 @@ async def job__get_id(id:int=Path(ge=0),db:AsyncSession=Depends(get_db),payload:
 async def job__delete(id:int=Path(ge=0),payload:dict=Depends(get_current_user_payload),db:AsyncSession=Depends(get_db)):
     user_id=int(payload.get("sub"))
     db_job= await db.scalar(select(Job).join(Business).where(Job.id == id,Business.user_id == user_id))
+    if not db_job:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Jobs Found")
+        
     try:
         await db.delete(db_job)
         await db.commit()
@@ -125,7 +129,7 @@ async def job__delete(id:int=Path(ge=0),payload:dict=Depends(get_current_user_pa
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail="DataBase is Down.")
 
-@router.patch("/jobs/{id}")
+@router.patch("/job/{id}")
 async def job__update(user_data:Update,id:int=Path(ge=0),payload:dict=Depends(get_current_user_payload),db:AsyncSession=Depends(get_db)):
     json_data=user_data.model_dump(exclude_none=True)
     user_id=int(payload.get("sub"))
@@ -150,7 +154,7 @@ async def job__update(user_data:Update,id:int=Path(ge=0),payload:dict=Depends(ge
 async def job__update_services(service_id:int,id:int=Path(ge=0),new_service:int=Form(),payload:dict=Depends(get_current_user_payload),db:AsyncSession=Depends(get_db)):
     user_id=int(payload.get("sub"))
         
-    previous_service = await db.get(Services, service_id)
+    previous_service = await db.scalar(select(Services).join(Business, Business.id == Services.business_id).where(Services.id == service_id, Business.user_id== user_id))
     if not previous_service:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Service Found. ")
     

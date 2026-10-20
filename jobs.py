@@ -10,5 +10,17 @@ async def send_verification_email(ctx,otp,email):
     with smtplib.SMTP_SSL("smtp.gmail.com",465) as smtp:
         smtp.login("sender","pass")
 
-async def MakeJob(ctx):
+async def MakeJob(
+    ctx,
+    business_id,
+    client_id,
+    title,
+    work,
+    note,
+    end_at,
+    job_status,
+    created_at,
+    start_at,
+    total_price
+    ):
     pass

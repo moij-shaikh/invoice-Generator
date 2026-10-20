@@ -118,13 +118,15 @@ class Quotation(Base):
     create_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
     update_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
     business:Mapped["Business"]=relationship("Business",back_populates="quotation")
-    invoice:Mapped["Invoice"]=relationship("Invoice",back_populates="quotation")
+    invoice:Mapped["Invoice | None"]=relationship("Invoice",back_populates="quotation")
 
 class Invoice(Base):
     __tablename__="invoice"
     id:Mapped[int]=mapped_column(primary_key=True)
 
     business_id:Mapped[int]=mapped_column(ForeignKey("business.id",ondelete="CASCADE"))
+    quotation_id:Mapped[int | None]=mapped_column(ForeignKey("quotation.id", ondelete="SET NULL"), unique=True , nullable=True , default=None)
+    
     invoice_number:Mapped[int]
 
     

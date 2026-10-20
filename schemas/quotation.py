@@ -1,9 +1,9 @@
-from pydantic import BaseModel
+from pydantic import BaseModel , Field
 
 from enum import Enum
 
 class QuotationStatus(str,Enum):
-    QUOTATION="quotation"
+    PENDING="pending"
     CANCEL="cancel"
     ACCEPTED="accepted"
     REJECTED="rejected"
@@ -23,11 +23,12 @@ class ShowQuotation(BaseModel):
     total:float
 
 class NewQuotation(BaseModel):
-    discount:int | None =None
-    quotation_status:QuotationStatus
-    client_id:int
-    job_id:int
+    discount:int =Field(default=0,ge=0)
+    client_id:int = Field(ge=0)
+    job_id:int= Field(ge=0)
+    total:int  = Field(ge=0)
 
 class UpdateQuotation(BaseModel):
+    total:int=Field(gt=0)
     discount:int | None =None
     quotation_status:QuotationStatus

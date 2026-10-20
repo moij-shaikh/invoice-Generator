@@ -18,7 +18,7 @@ async def client__new(new_client:NewClient,payload:dict=Depends(get_current_user
     user_id=int(payload.get("sub"))
     db_business= await db.scalar(select(Business).where(Business.user_id==user_id))
     if not db_business:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No User Found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Business Found. First Add Business.")
     new_client=Client(
         business_id=db_business.id,
         name=new_client.name,

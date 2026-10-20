@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from redis_client import redis
 from datetime import datetime , timedelta , timezone
 
-from schemas.client import NewClient
+from schemas.request import NewClient
 from services.user_auth import get_current_user_payload
 
 router=APIRouter(tags=["Request"])
@@ -71,7 +71,7 @@ async def request_buyer__get_one(id:int=Path(gt=0), payload:dict=Depends(get_cur
     return db_request
 
 @router.post("/buyer/request/{id}/share")
-async def request_buyer__accepted(id:int, share_data:bool, new_client:NewClient,payload:dict=Depends(get_current_user_payload),db:AsyncSession=Depends(get_db)):
+async def request_buyer__accepted(req:Request,id:int, share_data:bool, new_client:NewClient,payload:dict=Depends(get_current_user_payload),db:AsyncSession=Depends(get_db)):
     user_id=int(payload.get("sub"))
     db_request= await db.scalar(select(ServiceRequest).where(ServiceRequest.user_id == user_id, ServiceRequest.id ==id))
     if not db_request:
@@ -91,18 +91,30 @@ async def request_buyer__accepted(id:int, share_data:bool, new_client:NewClient,
             city=new_client.city,
             state=new_client.state,
             country=new_client.country,
-            notes=new_client.notes,
+            notes="Automatic Client",
             create_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc)
         )
     try: 
         db.add(db_client)
         await db.commit()
+        await db.flush(db_client)
+        req.app.state.arq.enqueue_job(
+            "MakeJob",
+            business_id=db_request.business_id,
+            client_id=db_client.id,
+            title=new_client.title,
+            work=new_client.work,
+            note=new_client.notes,
+            end_at=new_client.end_at,
+            job_status="quotation",
+            created_at=datetime.now(timezone.utc),
+            start_at=new_client.start_at,
+            total_price=""
+            )
         return{
             "message":"Data was shared successfully. "
         }
     except SQLAlchemyError:
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database is down. ")
-
-

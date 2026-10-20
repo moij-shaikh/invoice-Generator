@@ -6,7 +6,7 @@ from routers import user, client , business, job , service , quotation , invoice
 
 @asynccontextmanager
 async def lifespan(app:FastAPI):
-    app.state.arq= create_pool(RedisSettings())
+    app.state.arq= await create_pool(RedisSettings())
     yield
     await app.state.arq.close()
 

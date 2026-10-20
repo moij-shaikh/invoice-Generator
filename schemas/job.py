@@ -36,7 +36,6 @@ class NewJob(BaseModel):
     start_at:datetime
     end_at:datetime
     job_status:JobStatus
-    total_price:int
 
 class Update(BaseModel):
     title:str|None=None
