@@ -29,6 +29,6 @@ class NewQuotation(BaseModel):
     total:int  = Field(ge=0)
 
 class UpdateQuotation(BaseModel):
-    total:int=Field(gt=0)
+    total:int | None=Field( default=None , gt=0)
     discount:int | None =None
-    quotation_status:QuotationStatus
+    quotation_status:QuotationStatus| None =None

@@ -25,7 +25,7 @@ async def invoice__new(new_invoice:NewInvoice,db:AsyncSession=Depends(get_db),pa
     db_job= await db.scalar(select(Job).where(Job.id==new_invoice.job_id, Job.client_id == db_client.id , Job.business_id ==db_business.id))
     if not db_job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Job Found. ")
-    if new_invoice.discount > db_job.total_price:
+    if new_invoice.discount<0   or new_invoice.discount >= db_job.total_price:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Discount cannot exceed the job total. ")
         
     
@@ -127,7 +127,7 @@ async def invoice__delete(id:int=Path(gt=0),db:AsyncSession=Depends(get_db),payl
     if not db_invoice:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Invoice Found. ")
     try:
-        await db.delete(db_invoice)
+        db_invoice.status=InvoiceStatus.CANCELLED
         await db.commit()
         return {
             "message": "Invoice was deleted. "

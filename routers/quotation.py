@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 
 router=APIRouter(tags=["Quotation"])
 
-@router.post("/Quotation")
+@router.post("/Quotation", status_code=status.HTTP_201_CREATED)
 async def quotation__new(
     new_quotation:NewQuotation,
     payload:dict=Depends(get_current_user_payload),
@@ -69,17 +69,19 @@ async def quotation__display_all(id:int=Path(gt=0),db:AsyncSession=Depends(get_d
 
 
 @router.delete("/Quotation/{id}")
-async def quotation__display_all(id:int,db:AsyncSession=Depends(get_db),payload:dict=Depends(get_current_user_payload)):
+async def quotation__display_all(id:int=Path(gt=0),db:AsyncSession=Depends(get_db),payload:dict=Depends(get_current_user_payload)):
     user_id=int(payload.get("sub"))
     db_quotations= await db.scalar(select(Quotation).join(Business,Business.id == Quotation.business_id).where(Business.user_id == user_id,Quotation.id ==id))
     if not db_quotations:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Data Found")
-    existing= await db.scalar(select(Invoice).where(Invoice.quotation_id == db_quotations.id, Invoice.business_id ==Quotation.business_id ))
+    existing= await db.scalar(select(Invoice).join(Business).where(Invoice.quotation_id == db_quotations.id, Invoice.business_id ==db_quotations.business_id, Business.user_id == user_id ))
     if existing is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Cannot delete a quotation that has an invoice.")
         
     try: 
-        await db.delete(db_quotations)
+        db_quotations.quotation_status= QuotationStatus.CANCEL
+        db_quotations.update_at = datetime.now(timezone.utc)
+        
         await db.commit()
         return{
             "message":"Quotation was deleted. "
@@ -92,15 +94,20 @@ async def quotation__display_all(id:int,db:AsyncSession=Depends(get_db),payload:
 @router.patch("/Quotation/{id}")
 async def Quotation__update(id:int,updated_data:UpdateQuotation,payload:dict=Depends(get_current_user_payload),db:AsyncSession=Depends(get_db)):
     user_id=int(payload.get("sub"))
-    filled_data = updated_data.model_dump(exclude_none=True)
+    filled_data = updated_data.model_dump(exclude_unset=True)
     db_quotation= await db.scalar(select(Quotation).join(Business).where(Quotation.id ==id, Business.user_id == user_id))
     if not db_quotation:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Data Found")
     if db_quotation.quotation_status == QuotationStatus.ACCEPTED:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Quotation is already accepted.you can not change it. ")
-    
     if db_quotation.quotation_status == QuotationStatus.CANCEL:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Quotation is already cancelled.you can not change it. ")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Quotation is already cancelled.you can not change it. ")
+    if db_quotation.quotation_status == QuotationStatus.REJECTED:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Quotation is already rejected.you can not change it. ")
+    existing = await db.scalar(select(Invoice).join(Business).where(Invoice.quotation_id == db_quotation.id,Business.user_id == user_id ))
+    if existing is not None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="An invoice is present for this quotation.you can not change it. ")
+        
     new_total=(
         updated_data.total 
         if updated_data.total is not None
@@ -111,12 +118,12 @@ async def Quotation__update(id:int,updated_data:UpdateQuotation,payload:dict=Dep
         if updated_data.discount is not None
         else db_quotation.discount
     )
-    if new_discount >= new_total:
-            raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE, detail="Discount is greater than price. ")
-        
+    if new_total<=0 or new_discount < 0 or new_discount >= new_total:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Discount is greater than price. ")
     for field , value in filled_data.items():
         setattr(db_quotation , field, value)
     try:
+        db_quotation.update_at = datetime.now(timezone.utc)
         await db.commit()
         return {
             "message":"Quotation is updated. "

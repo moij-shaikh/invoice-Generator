@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Form , Depends , Path , HTTPException , status , Request , Response
+from fastapi import APIRouter, Form , Depends , HTTPException , status , Request , Response
 from fastapi.security import OAuth2PasswordRequestForm
 from database.database import get_db
 from database.models import User

@@ -3,7 +3,7 @@ from datetime import datetime
 
 from enum import Enum
 
-class InvoiceStatus(Enum, str):
+class InvoiceStatus(str, Enum):
         UNPAID="unpaid"
         PAID="paid"
         PARTIAL_PAID="partial_paid"

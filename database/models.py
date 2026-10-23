@@ -1,5 +1,5 @@
 from sqlalchemy.orm import DeclarativeBase , Mapped , mapped_column,relationship
-from sqlalchemy import DateTime , ForeignKey
+from sqlalchemy import DateTime , ForeignKey, UniqueConstraint
 from datetime import datetime
 class Base(DeclarativeBase):
     pass
@@ -20,7 +20,7 @@ class User(Base):
 class Business(Base):
     __tablename__="business"
     id:Mapped[int]=mapped_column(primary_key=True)
-    user_id:Mapped[int]=mapped_column(ForeignKey("users.id",ondelete="CASCADE"))
+    user_id:Mapped[int]=mapped_column(ForeignKey("users.id",ondelete="CASCADE") , unique=True)
     gst_number:Mapped[str | None]=mapped_column(default=None)
     business_name:Mapped[str]
     owner_name:Mapped[str]
@@ -84,7 +84,7 @@ class Job(Base):
     business_id:Mapped[int]=mapped_column(ForeignKey("business.id",ondelete="CASCADE"))
     client_id:Mapped[int]=mapped_column(ForeignKey("client.id",ondelete="CASCADE"))
     job_status:Mapped[str]
-    total_price:Mapped[int]
+    total_price:Mapped[float]
     title:Mapped[str]
     work:Mapped[str]
     note:Mapped[str]
@@ -122,16 +122,24 @@ class Quotation(Base):
 
 class Invoice(Base):
     __tablename__="invoice"
+    
+    __table_args__=(
+        UniqueConstraint(
+            "business_id",
+            "invoice_number",
+            name="unique_invoice"
+        )
+    )
     id:Mapped[int]=mapped_column(primary_key=True)
 
     business_id:Mapped[int]=mapped_column(ForeignKey("business.id",ondelete="CASCADE"))
     quotation_id:Mapped[int | None]=mapped_column(ForeignKey("quotation.id", ondelete="SET NULL"), unique=True , nullable=True , default=None)
     
-    invoice_number:Mapped[int]
-
+    invoice_number:Mapped[int]=mapped_column()
     
-    client_id:Mapped[int]=mapped_column(ForeignKey("client.id",ondelete="CASCADE"))
-    job_id:Mapped[int]=mapped_column(ForeignKey("jobs.id",ondelete="CASCADE"))
+    
+    client_id:Mapped[int]=mapped_column(ForeignKey("client.id",ondelete="SET NULL"),nullable=True)
+    job_id:Mapped[int]=mapped_column(ForeignKey("jobs.id",ondelete="SET NULL"),nullable=True)
     total:Mapped[float]
     discount:Mapped[float]
     status:Mapped[str]
@@ -140,7 +148,7 @@ class Invoice(Base):
     created_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
     updated_at:Mapped[datetime | None]=mapped_column(DateTime(timezone=True),default=None)
 
-    quotation:Mapped["Quotation"]=relationship("Quotation",back_populates="invoice")
+    quotation:Mapped["Quotation | None"]=relationship("Quotation",back_populates="invoice")
 
 class ServiceRequest(Base):
     __tablename__="service_requests"

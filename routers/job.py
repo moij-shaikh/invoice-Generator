@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Path,status,HTTPException, Form , Depends
 
-from database.models import Job , Services , Client , Business , JobServices
+from database.models import Job , Services , Client , Business , JobServices , Quotation, Invoice
 from database.database import get_db
 from sqlalchemy import select 
 from sqlalchemy.exc import SQLAlchemyError
@@ -9,7 +9,7 @@ from services.user_auth import get_current_user_payload
 
 from datetime import datetime, timezone
 
-from schemas.job import Update, NewJob , ShowAllJob , ShowJob
+from schemas.job import Update, NewJob , ShowAllJob , ShowJob, JobStatus
 
 router=APIRouter(tags=["Job"])
 
@@ -45,7 +45,7 @@ async def job__new(
         work=new_job.work,
         note=new_job.note,
         end_at=new_job.end_at,
-        job_status="quotation",
+        job_status=JobStatus.PENDING,
         created_at=datetime.now(timezone.utc),
         start_at=new_job.start_at,
         total_price=total_price
@@ -113,12 +113,17 @@ async def job__get_id(id:int=Path(ge=0),db:AsyncSession=Depends(get_db),payload:
     return display_list
 
 @router.delete("/job/{id}")
-async def job__delete(id:int=Path(ge=0),payload:dict=Depends(get_current_user_payload),db:AsyncSession=Depends(get_db)):
+async def job__delete(id:int=Path(gt=0),payload:dict=Depends(get_current_user_payload),db:AsyncSession=Depends(get_db)):
     user_id=int(payload.get("sub"))
     db_job= await db.scalar(select(Job).join(Business).where(Job.id == id,Business.user_id == user_id))
     if not db_job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Jobs Found")
-        
+    existing= await db.scalar(select(Quotation).join(Business, Business.id == Quotation.business_id).where(Quotation.job_id == db_job.id, Business.user_id == user_id))
+    if  existing:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="Quotation exists for this job. ")
+    existing= await db.scalar(select(Invoice).join(Business, Business.id == Invoice.business_id).where(Invoice.job_id == db_job.id, Business.user_id == user_id))
+    if  existing:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="Invoice exists for this job. ")
     try:
         await db.delete(db_job)
         await db.commit()

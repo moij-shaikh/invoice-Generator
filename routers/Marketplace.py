@@ -62,12 +62,14 @@ async def marketplace_business__request(id:int,new_request:NewRequest,payload:di
     db_business= await db.get(Business,id)
     if not db_business:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Business Found")
-    service_ids=[ int(i.strip()) for i in new_request.services.split(",")]
-
+    try:
+        service_ids=[ int(i.strip()) for i in new_request.services.split(",")]
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Service IDs must be comma-separated integer.")
     db_services= await db.scalars(select(Services).where(Services.business_id == db_business.id, Services.id.in_(service_ids)))
-    if not db_services and len(db_services) < len(service_ids):
+    db_services_list=db_services.all()
+    if not db_services_list or len(db_services_list) != len(service_ids):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="One or more Services Found")
-    print(service_ids)
 
     db_new= ServiceRequest(
         business_id=id,

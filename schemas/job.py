@@ -8,6 +8,8 @@ class JobStatus(str, Enum):
     CANCEL="cancel"
     DONE="done"
     REJECTED="rejected"
+    PENDING="pending"
+    QUOTATION="quotation"
 
 class ShowAllJob(BaseModel):
     client_id:int
@@ -15,7 +17,7 @@ class ShowAllJob(BaseModel):
     start_at:datetime
     end_at:datetime
     job_status:JobStatus
-    total_price:int
+    total_price:float
     
 class ShowJob(BaseModel):
     client_id:int
@@ -26,7 +28,7 @@ class ShowJob(BaseModel):
     start_at:datetime
     end_at:datetime
     job_status:JobStatus
-    total_price:int
+    total_price:float
 class NewJob(BaseModel):
     client_id:int
     services_ids_str:list[int]
@@ -44,4 +46,4 @@ class Update(BaseModel):
     start_at:datetime|None=None
     end_at:datetime|None=None
     job_status:JobStatus|None=None
-    total_price:int|None=None
+    total_price:float|None=None

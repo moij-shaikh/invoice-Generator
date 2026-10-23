@@ -7,9 +7,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from redis_client import redis
-from datetime import datetime , timedelta , timezone
+from datetime import datetime  , timezone
 
-from schemas.request import NewClient
+from schemas.request import NewClient , RequestStatus
 from services.user_auth import get_current_user_payload
 
 router=APIRouter(tags=["Request"])
@@ -44,7 +44,7 @@ async def request_seller__update_status(id:int, new_status:str=Form(),payload:di
     db_request.status = new_status
     try:
         await db.commit()
-        if new_status == "accept":
+        if new_status == RequestStatus.ACCEPT:
             print("send buyer email")
         return "Status updated. "
     except SQLAlchemyError:
@@ -52,8 +52,7 @@ async def request_seller__update_status(id:int, new_status:str=Form(),payload:di
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail="Db is down.")
 
 
-
-@router.get("buyer/request/view")
+@router.get("/buyer/request/view")
 async def request_buyer__view_all(payload:dict=Depends(get_current_user_payload),db:AsyncSession=Depends(get_db)):
     user_id=int(payload.get("sub"))
     db_requests= await db.scalars(select(ServiceRequest).where(ServiceRequest.user_id == user_id))
@@ -62,7 +61,7 @@ async def request_buyer__view_all(payload:dict=Depends(get_current_user_payload)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No Request found. ")
     return db_requests_list
 
-@router.get("buyer/request/view/{id}")
+@router.get("/buyer/request/view/{id}")
 async def request_buyer__get_one(id:int=Path(gt=0), payload:dict=Depends(get_current_user_payload), db:AsyncSession=Depends(get_db)):
     user_id=int(payload.get("sub"))
     db_request= await db.scalar(select(ServiceRequest).where(ServiceRequest.user_id == user_id, ServiceRequest.id ==id))
@@ -76,7 +75,7 @@ async def request_buyer__accepted(req:Request,id:int, share_data:bool, new_clien
     db_request= await db.scalar(select(ServiceRequest).where(ServiceRequest.user_id == user_id, ServiceRequest.id ==id))
     if not db_request:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No Request found. ")
-    if db_request.status.lower() != "accepted":
+    if db_request.status.lower() != RequestStatus.ACCEPT:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No Request found Or request is rejected. ")
 
     if not share_data:
@@ -97,9 +96,9 @@ async def request_buyer__accepted(req:Request,id:int, share_data:bool, new_clien
         )
     try: 
         db.add(db_client)
+        await db.flush()
         await db.commit()
-        await db.flush(db_client)
-        req.app.state.arq.enqueue_job(
+        await req.app.state.arq.enqueue_job(
             "MakeJob",
             business_id=db_request.business_id,
             client_id=db_client.id,
@@ -110,7 +109,7 @@ async def request_buyer__accepted(req:Request,id:int, share_data:bool, new_clien
             job_status="quotation",
             created_at=datetime.now(timezone.utc),
             start_at=new_client.start_at,
-            total_price=""
+            service_ids=[int(service_id.strip()) for service_id in db_request.services]
             )
         return{
             "message":"Data was shared successfully. "
