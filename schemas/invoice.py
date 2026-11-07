@@ -1,4 +1,4 @@
-from pydantic import BaseModel , Field
+from pydantic import BaseModel , Field, ConfigDict
 from datetime import datetime 
 
 from enum import Enum
@@ -23,6 +23,7 @@ class UpdateInvoice(BaseModel):
     due_date:datetime | None=None
 
 class ShowAllInvoice(BaseModel):
+    model_config=ConfigDict(from_attributes=True)
     invoice_number:int
     client_id:int
     job_id:int
@@ -31,6 +32,7 @@ class ShowAllInvoice(BaseModel):
     status:InvoiceStatus
 
 class ShowInvoice(BaseModel):
+    model_config=ConfigDict(from_attributes=True)
     invoice_number:int
     client_id:int
     job_id:int
@@ -38,6 +40,6 @@ class ShowInvoice(BaseModel):
     discount:float
     status:InvoiceStatus
     start_date:datetime
-    due_date:datetime
+    due_date:datetime | None
     created_at:datetime
-    updated_at:datetime
+    updated_at:datetime | None

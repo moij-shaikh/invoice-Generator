@@ -1,22 +1,24 @@
-from pydantic import BaseModel , Field
+from pydantic import BaseModel , Field, ConfigDict
 from datetime import datetime
 class NewService(BaseModel):
     name:str
     description:str 
     pricing_type:str
-    price:float
+    price:float= Field(gt=0)
     unit:str
-    gst_percentage:float
+    gst_percentage:float = Field(ge=0)
     is_active:bool
 
 class ShowAllServices(BaseModel):
+    model_config=ConfigDict(from_attributes=True)
     name:str
     pricing_type:str
-    price:float
+    price:float 
     unit:str
     is_active:bool
 
 class ShowServices(BaseModel):
+    model_config=ConfigDict(from_attributes=True)
     name:str
     description:str
     pricing_type:str

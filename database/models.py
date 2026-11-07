@@ -153,8 +153,8 @@ class Invoice(Base):
     invoice_number:Mapped[int]=mapped_column()
     
     
-    client_id:Mapped[int]=mapped_column(ForeignKey("client.id",ondelete="CASCADE"),nullable=True)
-    job_id:Mapped[int]=mapped_column(ForeignKey("jobs.id",ondelete="CASCADE"),nullable=True, unique=True)
+    client_id:Mapped[int]=mapped_column(ForeignKey("client.id",ondelete="CASCADE"),nullable=False)
+    job_id:Mapped[int | None]=mapped_column(ForeignKey("jobs.id",ondelete="CASCADE"),nullable=True, unique=True)
     total:Mapped[float]
     discount:Mapped[float]
     status:Mapped[str]
