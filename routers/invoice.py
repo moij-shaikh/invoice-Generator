@@ -16,7 +16,7 @@ router=APIRouter(tags=["Invoice"])
 @router.post("/invoice")
 async def invoice__new(new_invoice:NewInvoice,db:AsyncSession=Depends(get_db),payload:dict=Depends(get_current_user_payload)):
     user_id=int(payload.get("sub"))
-    db_business= await db.scalar(select(Business).where(Business.user_id ==user_id).with_for_update())
+    db_business= await db.scalar(select(Business).where(Business.user_id ==user_id, Business.is_deleted == False).with_for_update())
     if not db_business:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Business Found. ")
     db_client= await db.scalar(select(Client).where(Client.business_id ==  db_business.id, Client.id == new_invoice.client_id))
@@ -25,9 +25,14 @@ async def invoice__new(new_invoice:NewInvoice,db:AsyncSession=Depends(get_db),pa
     db_job= await db.scalar(select(Job).where(Job.id==new_invoice.job_id, Job.client_id == db_client.id , Job.business_id ==db_business.id))
     if not db_job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Job Found. ")
-    if new_invoice.discount<0   or new_invoice.discount >= db_job.total_price:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Discount cannot exceed the job total. ")
+    existing= await db.scalar(select(Invoice).where(Invoice.job_id == db_job.id, Invoice.business_id == db_business.id))
+    if existing:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="An invoice exists for this job. ")
         
+    if new_invoice.discount < 0 or new_invoice.discount >= db_job.total_price:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Discount cannot exceed the job total. ")
+    if new_invoice.due_date < new_invoice.start_date:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Due date cannot be before start date.")
     
     last_number= await db.scalar(select(Invoice.invoice_number).where(Invoice.business_id == db_business.id).order_by(Invoice.invoice_number.desc()))
     if not last_number:
@@ -41,7 +46,7 @@ async def invoice__new(new_invoice:NewInvoice,db:AsyncSession=Depends(get_db),pa
         job_id=new_invoice.job_id,
         total=db_job.total_price,
         discount=new_invoice.discount,
-        status=new_invoice.status,
+        status=InvoiceStatus.UNPAID,
         start_date=new_invoice.start_date,
         due_date=new_invoice.due_date,
         created_at=datetime.now(timezone.utc),
@@ -66,14 +71,23 @@ async def invoice__generate_from_quotation(due_date:datetime=Form(),start_date:d
     db_quotation= await db.scalar(select(Quotation).join(Business,Quotation.business_id == Business.id).where(Business.user_id ==user_id, Quotation.id == quotation_id))
     if not db_quotation:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Quotation Found. ")
+        
     if db_quotation.quotation_status != QuotationStatus.ACCEPTED :
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Can not process unaccepted and cancelled Quotation. ")
-    existing= await db.scalar(select(Invoice).where(Invoice.quotation_id == db_quotation.id))
+    
+    existing= await db.scalar(select(Invoice).where(Invoice.quotation_id == db_quotation.id, Invoice.business_id == db_business.id))
     if existing:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"An Invoice already exists for this quotation: Inv id: {existing.id}")
     db_job= await db.scalar(select(Job).where(Job.id == db_quotation.job_id , Job.client_id == db_quotation.client_id, Job.business_id ==db_business.id))
     if not db_job:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,detail="Job Dose not match with given quotation id . ")
+   
+    existing = await db.scalar( select(Invoice).where(Invoice.job_id == db_quotation.job_id))
+    if existing:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="An invoice already exists for this job. ")
+    if due_date < start_date:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Due date cannot be before start date.")
+        
     last_number= await db.scalar(select(Invoice.invoice_number).where(Invoice.business_id == db_quotation.business_id).order_by(Invoice.invoice_number.desc()))
     if not last_number:
         invoice_number=1
@@ -126,8 +140,11 @@ async def invoice__delete(id:int=Path(gt=0),db:AsyncSession=Depends(get_db),payl
     db_invoice= await db.scalar(select(Invoice).join(Business, Invoice.business_id == Business.id).where(Business.user_id == user_id, Invoice.id == id))
     if not db_invoice:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Invoice Found. ")
+    if db_invoice.status in  {InvoiceStatus.PAID, InvoiceStatus.PARTIAL_PAID }:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot cancel already paid invoice.")
     try:
         db_invoice.status=InvoiceStatus.CANCELLED
+        db_invoice.updated_at=datetime.now(timezone.utc)
         await db.commit()
         return {
             "message": "Invoice was deleted. "
@@ -143,6 +160,11 @@ async def invoice__update(new_data:UpdateInvoice,id:int=Path(gt=0),payload:dict=
     if not db_invoice:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Invoice Found. ")
     filled_data=new_data.model_dump(exclude_none=True)
+    if "start_date" in filled_data.keys():
+        start_date=filled_data["start_date"]
+        if start_date > db_invoice.due_date:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Start date cannot appear after due date. ")
+        
     for field , value in filled_data.items():
         setattr(db_invoice,field,value)
     try:

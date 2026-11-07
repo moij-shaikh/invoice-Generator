@@ -15,7 +15,6 @@ class NewInvoice(BaseModel):
     discount:float
     start_date:datetime
     due_date:datetime
-    status:InvoiceStatus
 
 
 class UpdateInvoice(BaseModel):

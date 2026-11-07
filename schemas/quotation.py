@@ -13,22 +13,24 @@ class ShowAllQuotation(BaseModel):
     client_id:int
     quotation_status:QuotationStatus
     job_id:int
-    total:float
+    discount: float
+    
 
 class ShowQuotation(BaseModel):
     id:int
     client_id:int
     quotation_status:QuotationStatus
+    discount: float
     job_id:int
     total:float
 
 class NewQuotation(BaseModel):
     discount:int =Field(default=0,ge=0)
-    client_id:int = Field(ge=0)
-    job_id:int= Field(ge=0)
-    total:int  = Field(ge=0)
+    client_id:int = Field(gt=0)
+    job_id:int= Field(gt=0)
+    total:int  = Field(gt=0)
 
 class UpdateQuotation(BaseModel):
-    total:int | None=Field( default=None , gt=0)
-    discount:int | None =None
+    total:float | None=Field( default=None , gt=0)
+    discount:int | None =Field(default=None, ge=0)
     quotation_status:QuotationStatus| None =None

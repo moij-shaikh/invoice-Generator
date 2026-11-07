@@ -84,7 +84,9 @@ async def business__delete(id:int=Path(gt=0),db:AsyncSession=Depends(get_db),pay
     if not db_business:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Business Found.")
     try:
-        await db.delete(db_business)
+        db_business.is_deleted=True
+        db_business.deleted_at=datetime.now(timezone.utc)
+        
         await db.commit()
         return {
             "message":f"{db_business.business_name} was successfully deleted"

@@ -32,7 +32,8 @@ async def services__display_all(id:int,db:AsyncSession=Depends(get_db),payload:d
     if not db_service:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Services Found. ")
     try:
-        await db.delete(db_service)
+        db_service.is_deleted=True
+        db_service.deleted_at=datetime.now(timezone.utc)
         await db.commit()
         return {
             "message":"Service was deleted."

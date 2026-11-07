@@ -57,7 +57,8 @@ async def client__delete(id:int=Path(gt=0),db:AsyncSession=Depends(get_db),paylo
     if not db_client:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Client Found")
     try:
-        await db.delete(db_client)
+        db_client.is_deleted=True
+        db_client.deleted_at=datetime.now(timezone.utc)
         await db.commit()
         return {
             "message":f"{db_client.id}: {db_client.name} was deleted."

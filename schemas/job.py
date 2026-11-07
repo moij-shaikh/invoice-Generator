@@ -11,39 +11,26 @@ class JobStatus(str, Enum):
     PENDING="pending"
     QUOTATION="quotation"
 
-class ShowAllJob(BaseModel):
-    client_id:int
-    title:str
-    start_at:datetime
-    end_at:datetime
-    job_status:JobStatus
-    total_price:float
     
-class ShowJob(BaseModel):
-    client_id:int
-    services_ids_str:list[int]
-    title:str
-    work:str
-    note:str
-    start_at:datetime
-    end_at:datetime
-    job_status:JobStatus
-    total_price:float
+class JobServiceInput(BaseModel):
+    service_id: int = Field(gt=0)
+    quantity: float = Field(gt=0)
+
 class NewJob(BaseModel):
-    client_id:int
-    services_ids_str:list[int]
+    client_id:int = Field(gt=0)
+    services:list[JobServiceInput]
     title:str
     work:str
     note:str
     start_at:datetime
     end_at:datetime
-    job_status:JobStatus
 
 class Update(BaseModel):
-    title:str|None=None
-    work:str|None=None
-    note:str|None=None
+    title: str | None = Field(default=None, min_length=1)
+    work: str | None = Field(default=None, min_length=1)
+    note: str | None = Field(default=None, min_length=1)
+    
     start_at:datetime|None=None
     end_at:datetime|None=None
+    
     job_status:JobStatus|None=None
-    total_price:float|None=None

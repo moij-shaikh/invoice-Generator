@@ -19,7 +19,7 @@ async def quotation__new(
     db:AsyncSession=Depends(get_db)
     ):
     user_id=int(payload.get("sub"))
-    db_business= await db.scalar(select(Business).where(Business.user_id == user_id))
+    db_business= await db.scalar(select(Business).where(Business.user_id == user_id).with_for_update())
     if not db_business:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Business Found. ")
     db_job= await db.scalar(select(Job).join(Business,Business.id == Job.business_id).where(
@@ -29,13 +29,18 @@ async def quotation__new(
     ))
     if not db_job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Jobs Found")
-    if new_quotation.discount >= new_quotation.total:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Discount must be less than the total price.  ")
+    
+    existing= await db.scalar(select(Quotation).where(Quotation.job_id == db_job.id, Quotation.business_id == db_business.id))
+    if existing:
+        raise HTTPException(status_code=409,detail="Quotation already exists for this job.")
+    
+    if new_quotation.discount < 0  or new_quotation.discount >= db_job.total_price:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Discount must be less than the total price and non negative value.  ")
     db_quotation=Quotation(
         business_id=db_business.id,
         client_id = new_quotation.client_id,
         job_id = new_quotation.job_id,
-        total=new_quotation.total,
+        total=db_job.total_price,
         discount=new_quotation.discount,
         quotation_status=QuotationStatus.PENDING,
         create_at=datetime.now(timezone.utc),
@@ -75,9 +80,10 @@ async def quotation__display_all(id:int=Path(gt=0),db:AsyncSession=Depends(get_d
     if not db_quotations:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Data Found")
     existing= await db.scalar(select(Invoice).join(Business).where(Invoice.quotation_id == db_quotations.id, Invoice.business_id ==db_quotations.business_id, Business.user_id == user_id ))
-    if existing is not None:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Cannot delete a quotation that has an invoice.")
-        
+    if existing:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Cannot cancel quotation having an invoice.")
+    if db_quotations.quotation_status == QuotationStatus.ACCEPTED:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="quotation is accepted.Cannot cancel it. ") 
     try: 
         db_quotations.quotation_status= QuotationStatus.CANCEL
         db_quotations.update_at = datetime.now(timezone.utc)
@@ -98,14 +104,10 @@ async def Quotation__update(id:int,updated_data:UpdateQuotation,payload:dict=Dep
     db_quotation= await db.scalar(select(Quotation).join(Business).where(Quotation.id ==id, Business.user_id == user_id))
     if not db_quotation:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Data Found")
-    if db_quotation.quotation_status == QuotationStatus.ACCEPTED:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Quotation is already accepted.you can not change it. ")
-    if db_quotation.quotation_status == QuotationStatus.CANCEL:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Quotation is already cancelled.you can not change it. ")
-    if db_quotation.quotation_status == QuotationStatus.REJECTED:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Quotation is already rejected.you can not change it. ")
+    if db_quotation.quotation_status not in  {QuotationStatus.PENDING, QuotationStatus.REJECTED , QuotationStatus.CANCEL}:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Only pending quotations can be updated. Its status is: {db_quotation.quotation_status} ")
     existing = await db.scalar(select(Invoice).join(Business).where(Invoice.quotation_id == db_quotation.id,Business.user_id == user_id ))
-    if existing is not None:
+    if existing:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="An invoice is present for this quotation.you can not change it. ")
         
     new_total=(
@@ -120,9 +122,10 @@ async def Quotation__update(id:int,updated_data:UpdateQuotation,payload:dict=Dep
     )
     if new_total<=0 or new_discount < 0 or new_discount >= new_total:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Discount is greater than price. ")
-    for field , value in filled_data.items():
-        setattr(db_quotation , field, value)
+ 
     try:
+        for field , value in filled_data.items():
+            setattr(db_quotation , field, value)
         db_quotation.update_at = datetime.now(timezone.utc)
         await db.commit()
         return {
