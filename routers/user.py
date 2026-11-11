@@ -41,6 +41,7 @@ async def user__register_new_user(
             "message":f"User was successfully Registered and Verification email was sended. {token}"
         }
     except SQLAlchemyError:
+        await db.rollback()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail="Database Is Down.")
 
 @router.delete("",tags=["User"])
@@ -51,7 +52,7 @@ async def user__delete(
     payload:dict=Depends(get_current_user_payload),
     db:AsyncSession=Depends(get_db)
 ):
-    current_user=payload.get("sub")
+    current_user=int(payload.get("sub"))
     db_user= await db.scalar(select(User).where(User.id==user_id,User.email==email))
     if current_user  != user_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="You can not delete other accounts. ")

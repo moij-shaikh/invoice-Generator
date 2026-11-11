@@ -10,15 +10,12 @@ class InvoiceStatus(str, Enum):
         CANCELLED="cancelled"    
 
 class NewInvoice(BaseModel):
-    client_id:int
-    job_id:int
-    discount:float
+    client_id:int = Field(gt=0)
+    job_id:int= Field(gt=0)
+    discount:float = Field(ge=0)
     start_date:datetime
     due_date:datetime
-
-
 class UpdateInvoice(BaseModel):
-    status:InvoiceStatus | None=None
     start_date:datetime | None =None
     due_date:datetime | None=None
 

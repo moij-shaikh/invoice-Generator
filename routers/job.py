@@ -81,7 +81,9 @@ async def job__new(
                 JobServices(
                     job_id=db_job.id,
                     service_id=service.id,
-                    quantity=item.quantity
+                    quantity=item.quantity,
+                    price=service.price,
+                    gst_percentage=service.gst_percentage
                 )
             )
             
@@ -115,7 +117,6 @@ async def job__get_id(id:int=Path(gt=0),db:AsyncSession=Depends(get_db),payload:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Jobs Found")
     db_services= await db.execute(select(Services,JobServices).join(JobServices,JobServices.service_id == Services.id).where(JobServices.job_id == id , Services.is_deleted ==False, Services.is_active==True))
     db_services_list=db_services.all()
-
     display_list={
         "job id":db_job.id,
         "title":db_job.title,
@@ -131,12 +132,11 @@ async def job__get_id(id:int=Path(gt=0),db:AsyncSession=Depends(get_db),payload:
                 "name":service.name,
                 "pricing_type":service.pricing_type,
                 "unit":service.unit,
-                "price":service.price,
+                "price":job_service.price,
                 "quantity":job_service.quantity,
-                "gst":service.gst_percentage
+                "gst":job_service.gst_percentage
             }
             for service, job_service in db_services_list
-
         ]
     }
     return display_list
@@ -174,11 +174,10 @@ async def job__delete(id:int=Path(gt=0),payload:dict=Depends(get_current_user_pa
 async def job__update(user_data:Update,id:int=Path(gt=0),payload:dict=Depends(get_current_user_payload),db:AsyncSession=Depends(get_db)):
     json_data=user_data.model_dump(exclude_none=True)
     user_id=int(payload.get("sub"))
-    db_job= await db.scalar(select(Job).join(Business, Business.id == Job.business_id).where(Job.id == id, Business.user_id == user_id))
-    
+    db_job= await db.scalar(select(Job).join(Business, Business.id == Job.business_id).where(Job.id == id, Business.user_id == user_id, Business.is_deleted == False))
     if not db_job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Jobs Found")
-    existing_quotation= await db.scalar(select(Quotation).join(Business, Quotation.business_id == Business.id).where(Business.user_id == user_id, Quotation.job_id == id))
+    existing_quotation= await db.scalar(select(Quotation).join(Business, Quotation.business_id == Business.id).where(Business.user_id == user_id, Quotation.job_id == id, Business.is_deleted == False))
     if existing_quotation:
         if existing_quotation.quotation_status not in {QuotationStatus.PENDING, QuotationStatus.CANCEL, QuotationStatus.REJECTED}:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Job can not be modified.  ")

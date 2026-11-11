@@ -27,8 +27,7 @@ async def business__new(
     currency:str=Form(),
     gst_number:str|None=Form(default=None),
     title:str=Form(description="Shown to public"),
-    thumbnail:UploadFile=File(None),
-    
+   
     payload:dict=Depends(get_current_user_payload),
     db:AsyncSession=Depends(get_db)
     ):
@@ -36,9 +35,6 @@ async def business__new(
     existing= await db.scalar(select(Business).where(Business.user_id==user_id))
     if existing:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,detail="An Business is Already Registered.")
-    file_path=None
-    if thumbnail:
-        file_path=f"uploads/business/file_{user_id}"
     business = Business(
         user_id=user_id,
         business_name=business_name,
@@ -56,7 +52,6 @@ async def business__new(
         create_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),
         title=title,
-        thumbnail=file_path
     )
     try:
         db.add(business)
@@ -71,7 +66,7 @@ async def business__new(
 @router.get("/business",response_model=list[GetBusiness])
 async def user__get_business(db:AsyncSession=Depends(get_db),payload:dict=Depends(get_current_user_payload)):
     user_id=int(payload.get("sub"))
-    db_business= await db.scalars(select(Business).where(Business.user_id == user_id))
+    db_business= await db.scalars(select(Business).where(Business.user_id == user_id, Business.is_deleted == False))
     db_business_list=db_business.all()
     if not db_business_list:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Business Found.")
@@ -95,10 +90,12 @@ async def business__delete(id:int=Path(gt=0),db:AsyncSession=Depends(get_db),pay
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail="Database Is Down.")
 
-@router.patch("/business/{id}")
-async def business__update(id:int,user_data:UpdateBusiness,db:AsyncSession=Depends(get_db),payload:dict=Depends(get_current_user_payload)):
+@router.patch("/business")
+async def business__update(user_data:UpdateBusiness,db:AsyncSession=Depends(get_db),payload:dict=Depends(get_current_user_payload)):
     user_id=int(payload.get("sub"))
-    db_business= await db.scalar(select(Business).where(Business.user_id==user_id , Business.id==id))
+    db_business= await db.scalar(select(Business).where(Business.user_id==user_id , Business.is_deleted == False))
+    if not db_business:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No business found")
     data=user_data.model_dump(exclude_unset=True)
     for field , value in data.items():
         setattr(db_business,field,value)

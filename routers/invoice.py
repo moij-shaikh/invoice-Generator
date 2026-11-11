@@ -71,7 +71,7 @@ async def invoice__generate_from_quotation(due_date:datetime=Form(),start_date:d
     if not db_business:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Business Found. ")
     
-    db_quotation= await db.scalar(select(Quotation).join(Business,Quotation.business_id == Business.id).where(Business.user_id ==user_id, Quotation.id == quotation_id, Business.is_deleted == False ))
+    db_quotation= await db.scalar(select(Quotation).where(Quotation.id == quotation_id, Quotation.business_id == db_business.id))
     if not db_quotation:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Quotation Found. ")
         
@@ -84,7 +84,8 @@ async def invoice__generate_from_quotation(due_date:datetime=Form(),start_date:d
     db_job= await db.scalar(select(Job).where(Job.id == db_quotation.job_id , Job.client_id == db_quotation.client_id, Job.business_id ==db_business.id))
     if not db_job:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,detail="Job Dose not match with given quotation id . ")
-   
+    if db_job.job_status != JobStatus.WORKING:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Something wrong with job , check its status. ")
     existing = await db.scalar( select(Invoice).where(Invoice.job_id == db_quotation.job_id))
     if existing:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="An invoice already exists for this job. ")
@@ -153,7 +154,7 @@ async def invoice__delete(id:int=Path(gt=0),db:AsyncSession=Depends(get_db),payl
         db_invoice.updated_at=datetime.now(timezone.utc)
         await db.commit()
         return {
-            "message": "Invoice was deleted. "
+            "message": "Invoice was cancelled. "
         }
     except SQLAlchemyError:
         await db.rollback()
@@ -167,15 +168,16 @@ async def invoice__update(new_data:UpdateInvoice,id:int=Path(gt=0),payload:dict=
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Invoice Found. ")
     if db_invoice.status in {InvoiceStatus.PAID , InvoiceStatus.PARTIAL_PAID}:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=" This invoice cannot be updated.")
-    filled_data=new_data.model_dump(exclude_none=True)
-    if "start_date" in filled_data.keys():
-        start_date=filled_data["start_date"]
-        if start_date > db_invoice.due_date:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Start date cannot appear after due date. ")
-        
-    for field , value in filled_data.items():
-        setattr(db_invoice,field,value)
+    filled_data=new_data.model_dump(exclude_unset=True)
+    if not filled_data:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,  detail="No values provided for update.")
+    new_start_date = filled_data.get("start_date", db_invoice.start_date)
+    new_due_date = filled_data.get("due_date", db_invoice.due_date)
+    if new_due_date is not None and new_due_date < new_start_date:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT , detail="Due date cannot be before start date.")
     try:
+        for field , value in filled_data.items():
+                setattr(db_invoice,field,value)
         db_invoice.updated_at = datetime.now(timezone.utc)
         await db.commit()
         return {

@@ -25,9 +25,8 @@ class ShowQuotation(BaseModel):
     discount: float
     job_id:int
     total:float
-
 class NewQuotation(BaseModel):
-    discount:int =Field(default=0,ge=0)
+    discount:float =Field(default=0,ge=0)
     client_id:int = Field(gt=0)
     job_id:int= Field(gt=0)
 

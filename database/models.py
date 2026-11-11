@@ -38,7 +38,6 @@ class Business(Base):
     is_deleted: Mapped[bool] = mapped_column(default=False)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     updated_at:Mapped[datetime]=mapped_column(DateTime(timezone=True))
-    thumbnail:Mapped[str|None]=mapped_column(default=None)
     title:Mapped[str]
 
     user:Mapped["User"]=relationship("User",back_populates="business")
@@ -107,6 +106,8 @@ class JobServices(Base):
     job_id:Mapped[int]=mapped_column(ForeignKey("jobs.id",ondelete="CASCADE"))
     service_id:Mapped[int]=mapped_column(ForeignKey("services.id",ondelete="CASCADE"))
     quantity:Mapped[float]=mapped_column(default=1.0)
+    price:Mapped[float]
+    gst_percentage:Mapped[float]
     job:Mapped["Job"]=relationship("Job",back_populates="services")
     services:Mapped["Services"]=relationship("Services",back_populates="jobservice")
     __table_args__=(

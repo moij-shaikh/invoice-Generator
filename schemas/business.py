@@ -1,6 +1,7 @@
-from pydantic import BaseModel , Field
+from pydantic import BaseModel , Field, ConfigDict
 
 class GetBusiness(BaseModel):
+    model_config=ConfigDict(from_attributes=True)
     business_name:str
     owner_name:str
     email:str
@@ -12,6 +13,7 @@ class GetBusiness(BaseModel):
     state:str
     country:str
     currency:str
+    
 class UpdateBusiness(BaseModel):
     gst_number:str|None=Field(default=None)
     business_name:str|None=Field(default=None)

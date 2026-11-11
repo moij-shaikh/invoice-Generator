@@ -16,7 +16,7 @@ router=APIRouter(prefix="/client",tags=["Client"])
 @router.post("")
 async def client__new(new_client:NewClient,payload:dict=Depends(get_current_user_payload), db:AsyncSession=Depends(get_db)):
     user_id=int(payload.get("sub"))
-    db_business= await db.scalar(select(Business).where(Business.user_id==user_id))
+    db_business= await db.scalar(select(Business).where(Business.user_id==user_id, Business.is_deleted == False))
     if not db_business:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Business Found. First Add Business.")
     new_client=Client(
@@ -46,16 +46,16 @@ async def client__new(new_client:NewClient,payload:dict=Depends(get_current_user
 @router.get("",response_model=list[GetClient])
 async def client__get(payload:dict=Depends(get_current_user_payload),db:AsyncSession=Depends(get_db)):
     user_id=int(payload.get("sub"))
-    data= await db.scalars(select(Client).join(Business).where(Business.user_id==user_id))
+    data= await db.scalars(select(Client).join(Business).where(Business.user_id==user_id, Business.is_deleted==False))
     return data.all()
-
-
 @router.delete("/{id}")
 async def client__delete(id:int=Path(gt=0),db:AsyncSession=Depends(get_db),payload:dict=Depends(get_current_user_payload)):
     user_id=int(payload.get("sub"))
-    db_client= await db.scalar(select(Client).join(Business,Client.business_id == Business.id).where(Business.user_id == user_id, Client.id ==id))
+    db_client= await db.scalar(select(Client).join(Business,Client.business_id == Business.id).where(Business.user_id == user_id, Client.id ==id, Business.is_deleted==False))
     if not db_client:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Client Found")
+    if db_client.is_deleted == True:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Client is deleted. ")
     try:
         db_client.is_deleted=True
         db_client.deleted_at=datetime.now(timezone.utc)
@@ -70,7 +70,7 @@ async def client__delete(id:int=Path(gt=0),db:AsyncSession=Depends(get_db),paylo
 @router.patch("/{id}")
 async def client__update(user_data:UpdateClient,id:int=Path(gt=0),db:AsyncSession=Depends(get_db),payload:dict=Depends(get_current_user_payload)):
     user_id=int(payload.get("sub"))
-    db_client= await db.scalar(select(Client).where(Client.id == id , Client.business.has(Business.user_id ==  user_id)))
+    db_client= await db.scalar(select(Client).where(Client.id == id , Client.business.has(Business.user_id ==  user_id, Business.is_deleted == False), Client.is_deleted == False))
     if not db_client:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Client Found")
     updated_data=user_data.model_dump(exclude_unset=True)
