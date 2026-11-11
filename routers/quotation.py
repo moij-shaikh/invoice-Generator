@@ -1,6 +1,6 @@
 from fastapi import APIRouter,status,HTTPException , Depends , Path
 
-from database.models import Job, Business , Quotation, Invoice
+from database.models import Job, Business , Quotation, Invoice, Client
 from database.database import get_db
 from sqlalchemy import select 
 from sqlalchemy.exc import SQLAlchemyError
@@ -32,7 +32,9 @@ async def quotation__new(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Jobs Found")
     if db_job.job_status != JobStatus.PENDING:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Job is not in pending. ")
-    
+    db_client= await db.scalar(select(Client).where(Client.id ==  new_quotation.client_id, Client.business_id == db_business.id, Client.is_deleted == False))
+    if not db_client:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Client Found")
     existing= await db.scalar(select(Quotation).where(Quotation.job_id == db_job.id, Quotation.business_id == db_business.id))
     if existing:
         raise HTTPException(status_code=409,detail="Quotation already exists for this job.")
@@ -103,6 +105,8 @@ async def quotation__display_all(id:int=Path(gt=0),db:AsyncSession=Depends(get_d
 async def Quotation__update(updated_data:UpdateQuotation,id:int=Path(gt=0),payload:dict=Depends(get_current_user_payload),db:AsyncSession=Depends(get_db)):
     user_id=int(payload.get("sub"))
     filled_data = updated_data.model_dump(exclude_unset=True)
+    if not filled_data:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No Fields provided for updated.")
     db_quotation= await db.scalar(select(Quotation).join(Business).where(Quotation.id ==id, Business.user_id == user_id, Business.is_deleted ==  False))
     if not db_quotation:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Data Found")

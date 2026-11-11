@@ -30,7 +30,7 @@ async def services__display_all(id:int=Path(gt=0),db:AsyncSession=Depends(get_db
 @router.delete("/Services/{id}")
 async def services__display_all(id:int=Path(gt=0),db:AsyncSession=Depends(get_db),payload:dict=Depends(get_current_user_payload)):
     user_id=int(payload.get("sub"))
-    db_service= await db.scalar(select(Services).join(Business,Services.business_id == Business.id).where(Business.user_id == user_id,Services.id ==id))
+    db_service= await db.scalar(select(Services).join(Business,Services.business_id == Business.id).where(Business.user_id == user_id,Services.id ==id, Business.is_deleted == False))
     if not db_service:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Services Found. ")
     if db_service.is_deleted == True:

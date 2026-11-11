@@ -34,7 +34,7 @@ async def invoice__new(new_invoice:NewInvoice,db:AsyncSession=Depends(get_db),pa
         
     if new_invoice.discount < 0 or new_invoice.discount >= db_job.total_price:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Discount cannot exceed the job total. ")
-    if new_invoice.due_date < new_invoice.start_date:
+    if  new_invoice.due_date is not None and new_invoice.due_date < new_invoice.start_date:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Due date cannot be before start date.")
     
     last_number= await db.scalar(select(Invoice.invoice_number).where(Invoice.business_id == db_business.id).order_by(Invoice.invoice_number.desc()))
@@ -77,7 +77,9 @@ async def invoice__generate_from_quotation(due_date:datetime=Form(),start_date:d
         
     if db_quotation.quotation_status != QuotationStatus.ACCEPTED :
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Can not process unaccepted and cancelled Quotation. ")
-    
+    db_client= await db.scalar(select(Client).where(Client.id == db_quotation.client_id, Client.business_id == db_business.id, Client.is_deleted == False))
+    if not db_client:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No Client Found. ")
     existing= await db.scalar(select(Invoice).where(Invoice.quotation_id == db_quotation.id, Invoice.business_id == db_business.id))
     if existing:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"An Invoice already exists for this quotation: Inv id: {existing.id}")

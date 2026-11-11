@@ -1,0 +1,33 @@
+from fpdf import FPDF
+
+def invoice_pdf():
+    pdf=FPDF()
+    pdf.add_page()
+    pdf.set_font("Helvetica", "B", 20)
+    pdf.cell(0,12,"MyShop", ln=True)
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.cell(0,6, "Business address", ln=True)
+    pdf.cell(0,6, "city, state, country", ln=True)
+    pdf.cell(0,6, "Phone: 1012000000", ln=True)
+    pdf.cell(0,6, "Email: some@x", ln=True)
+    pdf.cell(0,6, "GSTIN: 1230", ln=True)
+    
+    pdf.ln(8)
+    pdf.set_font("Helvetica", "B", 22)
+    pdf.cell(0,12,"Invoice", ln=True, align="C")
+    pdf.ln(6)
+    pdf.set_font("Helvetica","B", 11)
+    pdf.cell(0,7, "Invoice Number: 1", ln=True)
+    pdf.cell(0,7, "Invoice Date: 12-12-2026", ln=True)
+    
+    pdf.ln(8)
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.cell(0,8, "Bill To",ln=True)
+    pdf.set_font("Helvetica", size=10)
+    pdf.cell(0,6, "name", ln=True)
+    pdf.cell(0,6, "address", ln=True)
+    pdf.cell(0,6, "city, state, country", ln=True)
+    pdf.cell(0,6, "Phone: 1012000000", ln=True)
+    pdf.cell(0,6, "Email: some@x", ln=True)
+    pdf.output("invoice.pdf")
+invoice_pdf()

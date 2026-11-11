@@ -112,10 +112,10 @@ async def job__get_id(id:int=Path(gt=0),db:AsyncSession=Depends(get_db),payload:
     db_business= await db.scalar(select(Business).where(Business.user_id == user_id, Business.is_deleted == False))
     if not db_business:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Business Found")
-    db_job= await db.scalar(select(Job).join(Business, Business.id == Job.business_id).where(Job.id==id, Business.user_id == user_id))
+    db_job= await db.scalar(select(Job).join(Business, Business.id == Job.business_id).where(Job.id==id, Business.user_id == user_id,Business.is_deleted == False))
     if not db_job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Jobs Found")
-    db_services= await db.execute(select(Services,JobServices).join(JobServices,JobServices.service_id == Services.id).where(JobServices.job_id == id , Services.is_deleted ==False, Services.is_active==True))
+    db_services= await db.execute(select(Services,JobServices).join(JobServices,JobServices.service_id == Services.id).where(JobServices.job_id == id , Services.is_deleted ==False, Services.is_active==True, Services.business_id == db_job.business_id))
     db_services_list=db_services.all()
     display_list={
         "job id":db_job.id,
@@ -144,7 +144,7 @@ async def job__get_id(id:int=Path(gt=0),db:AsyncSession=Depends(get_db),payload:
 @router.delete("/job/{id}")
 async def job__delete(id:int=Path(gt=0),payload:dict=Depends(get_current_user_payload),db:AsyncSession=Depends(get_db)):
     user_id=int(payload.get("sub"))
-    db_job= await db.scalar(select(Job).join(Business).where(Job.id == id,Business.user_id == user_id))
+    db_job= await db.scalar(select(Job).join(Business).where(Job.id == id,Business.user_id == user_id, Business.is_deleted == False))
     if not db_job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Jobs Found")
     existing= await db.scalar(select(Quotation).join(Business, Business.id == Quotation.business_id).where(Quotation.job_id == db_job.id, Business.user_id == user_id))
@@ -173,6 +173,8 @@ async def job__delete(id:int=Path(gt=0),payload:dict=Depends(get_current_user_pa
 @router.patch("/job/{id}")
 async def job__update(user_data:Update,id:int=Path(gt=0),payload:dict=Depends(get_current_user_payload),db:AsyncSession=Depends(get_db)):
     json_data=user_data.model_dump(exclude_none=True)
+    if not json_data:
+        raise HTTPException(status_code=400, detail="No fields provided for update.")
     user_id=int(payload.get("sub"))
     db_job= await db.scalar(select(Job).join(Business, Business.id == Job.business_id).where(Job.id == id, Business.user_id == user_id, Business.is_deleted == False))
     if not db_job:
@@ -214,7 +216,7 @@ async def job__update(user_data:Update,id:int=Path(gt=0),payload:dict=Depends(ge
 @router.patch("/job/{id}/service/{service_id}")
 async def job__update_services(service_id:int,id:int=Path(gt=0),new_service:int=Form(gt=0), quantity:float=Form(gt=0),payload:dict=Depends(get_current_user_payload),db:AsyncSession=Depends(get_db)):
     user_id=int(payload.get("sub"))
-    db_job= await db.scalar(select(Job).join(Business,Business.id == Job.business_id).where(Job.id == id,Business.user_id == user_id))
+    db_job= await db.scalar(select(Job).join(Business,Business.id == Job.business_id).where(Job.id == id,Business.user_id == user_id, Business.is_deleted==False))
     if not db_job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Job Found. ")
     if db_job.job_status in {JobStatus.CANCEL, JobStatus.REJECTED, JobStatus.DONE, JobStatus.WORKING}:
@@ -232,9 +234,7 @@ async def job__update_services(service_id:int,id:int=Path(gt=0),new_service:int=
     existing_invoice=await db.scalar(select(Invoice).join(Business, Business.id == Invoice.business_id).where(Business.user_id == user_id, Invoice.job_id == id))
     if existing_invoice:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="An Invoice exist for this job.  ")
-    
-    
-    previous_service = await db.scalar(select(Services).join(Business, Business.id == Services.business_id).where(Services.id == service_id, Business.user_id== user_id))
+        
     existing_service= await db.scalar(select(JobServices).join(Services, JobServices.service_id == Services.id).join(Business, Services.business_id == Business.id)
                                       .where(
                                           Business.user_id ==  user_id, 
@@ -243,10 +243,6 @@ async def job__update_services(service_id:int,id:int=Path(gt=0),new_service:int=
                                       ))
     if existing_service:
         raise HTTPException(status_code=409,detail="This service already exists in the job.")
-    if not previous_service:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Service Found. ")
-
-    
     db_check = await db.scalar(select(Services).where(Services.id==new_service,Services.business_id==db_job.business_id, Services.is_deleted==False))
     if not db_check:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="No Service Found. ")
@@ -255,8 +251,8 @@ async def job__update_services(service_id:int,id:int=Path(gt=0),new_service:int=
     price=db_check.price * quantity
     gst=price * (db_check.gst_percentage/100)
     total=price+gst
-    previous_subtotal=previous_service.price * db_job_service.quantity
-    previous_gst=previous_subtotal* (previous_service.gst_percentage/100)
+    previous_subtotal=db_job_service.price * db_job_service.quantity
+    previous_gst=previous_subtotal* (db_job_service.gst_percentage/100)
     previous_total=previous_subtotal+ previous_gst
     try:
         db_job.total_price -= previous_total
@@ -264,6 +260,8 @@ async def job__update_services(service_id:int,id:int=Path(gt=0),new_service:int=
         
         db_job_service.service_id = db_check.id
         db_job_service.quantity=quantity
+        db_job_service.price= db_check.price
+        db_job_service.gst_percentage=db_check.gst_percentage
         db_job.update_at=datetime.now(timezone.utc)
         await db.commit()
 
