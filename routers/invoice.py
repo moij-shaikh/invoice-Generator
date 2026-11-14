@@ -1,5 +1,4 @@
-from fastapi import APIRouter,Path,status,HTTPException, Form , Depends
-
+from fastapi import APIRouter,Path,status,HTTPException, Form , Depends, Response
 from database.models import Business , Quotation , Invoice , Client , Job 
 from database.database import get_db
 from sqlalchemy import select 
@@ -11,7 +10,7 @@ from schemas.invoice import NewInvoice,UpdateInvoice , ShowAllInvoice , ShowInvo
 from schemas.quotation import QuotationStatus
 from schemas.job import JobStatus
 from datetime import datetime, timezone
-
+from services.pdfs import invoice_pdf
 router=APIRouter(tags=["Invoice"])
 
 @router.post("/invoice")
@@ -188,3 +187,25 @@ async def invoice__update(new_data:UpdateInvoice,id:int=Path(gt=0),payload:dict=
     except SQLAlchemyError:
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail="Database is Down.")
+    
+@router.get("/invoice/{id}/pdf")
+async def invoice__generate_pdf(db:AsyncSession=Depends(get_db), id:int=Path(gt=0), payload:dict=Depends(get_current_user_payload)):
+    user_id=int(payload.get("sub"))
+    db_business= await db.scalar(select(Business).where(Business.user_id == user_id, Business.is_deleted == False))
+    if not db_business:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No Business found. ")
+    db_invoice= await db.scalar(select(Invoice).where(Invoice.id == id, Invoice.business_id == db_business.id))
+    if not db_invoice:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No Invoice found. ")
+    db_client= await db.scalar(select(Client).where(Client.business_id == db_business.id , Client.id == db_invoice.client_id))
+    if not db_client:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No Client found. ")
+    db_job= await db.scalar(select(Job).where(Job.business_id == db_business.id, Job.id == db_invoice.job_id))
+    pdf_file = bytes(invoice_pdf(db_invoice, db_job, db_client,db_business))
+    return Response(
+        content=pdf_file,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="invoice-{db_invoice.invoice_number}.pdf"'
+        }
+    )

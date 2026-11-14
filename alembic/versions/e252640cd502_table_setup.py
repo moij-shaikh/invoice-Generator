@@ -1,8 +1,8 @@
-"""New setup
+"""Table setup
 
-Revision ID: 58d3cd922015
+Revision ID: e252640cd502
 Revises: 
-Create Date: 2026-10-07 21:17:12.283935
+Create Date: 2026-11-14 17:08:24.656255
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '58d3cd922015'
+revision: str = 'e252640cd502'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -28,8 +28,9 @@ def upgrade() -> None:
     sa.Column('is_verified', sa.Boolean(), nullable=False),
     sa.Column('is_blocked', sa.Boolean(), nullable=False),
     sa.Column('is_active', sa.Boolean(), nullable=False),
+    sa.Column('is_deleted', sa.Boolean(), nullable=False),
+    sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('create_at', sa.DateTime(timezone=True), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('last_login', sa.DateTime(timezone=True), nullable=False),
     sa.PrimaryKeyConstraint('id')
     )
@@ -49,12 +50,14 @@ def upgrade() -> None:
     sa.Column('country', sa.String(), nullable=False),
     sa.Column('currency', sa.String(), nullable=False),
     sa.Column('create_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('is_deleted', sa.Boolean(), nullable=False),
+    sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
-    sa.Column('thumbnail', sa.String(), nullable=True),
     sa.Column('title', sa.String(), nullable=False),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('email')
+    sa.UniqueConstraint('email'),
+    sa.UniqueConstraint('user_id')
     )
     op.create_table('client',
     sa.Column('id', sa.Integer(), nullable=False),
@@ -70,21 +73,9 @@ def upgrade() -> None:
     sa.Column('notes', sa.String(), nullable=False),
     sa.Column('create_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('is_deleted', sa.Boolean(), nullable=False),
+    sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
     sa.ForeignKeyConstraint(['business_id'], ['business.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
-    )
-    op.create_table('service_requests',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('business_id', sa.Integer(), nullable=False),
-    sa.Column('user_id', sa.Integer(), nullable=False),
-    sa.Column('services', sa.String(), nullable=False),
-    sa.Column('work', sa.String(), nullable=False),
-    sa.Column('notes', sa.String(), nullable=True),
-    sa.Column('status', sa.String(), nullable=False),
-    sa.Column('create_at', sa.DateTime(timezone=True), nullable=False),
-    sa.Column('update_at', sa.DateTime(timezone=True), nullable=False),
-    sa.ForeignKeyConstraint(['business_id'], ['business.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('services',
@@ -99,6 +90,8 @@ def upgrade() -> None:
     sa.Column('is_active', sa.Boolean(), nullable=False),
     sa.Column('create_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('update_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('is_deleted', sa.Boolean(), nullable=False),
+    sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
     sa.ForeignKeyConstraint(['business_id'], ['business.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
@@ -107,7 +100,7 @@ def upgrade() -> None:
     sa.Column('business_id', sa.Integer(), nullable=False),
     sa.Column('client_id', sa.Integer(), nullable=False),
     sa.Column('job_status', sa.String(), nullable=False),
-    sa.Column('total_price', sa.Integer(), nullable=False),
+    sa.Column('total_price', sa.Double(), nullable=False),
     sa.Column('title', sa.String(), nullable=False),
     sa.Column('work', sa.String(), nullable=False),
     sa.Column('note', sa.String(), nullable=False),
@@ -119,31 +112,17 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['client_id'], ['client.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_table('invoice',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('business_id', sa.Integer(), nullable=False),
-    sa.Column('invoice_number', sa.Integer(), nullable=False),
-    sa.Column('client_id', sa.Integer(), nullable=False),
-    sa.Column('job_id', sa.Integer(), nullable=False),
-    sa.Column('total', sa.Double(), nullable=False),
-    sa.Column('discount', sa.Double(), nullable=False),
-    sa.Column('status', sa.String(), nullable=False),
-    sa.Column('start_date', sa.DateTime(timezone=True), nullable=False),
-    sa.Column('due_date', sa.DateTime(timezone=True), nullable=True),
-    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
-    sa.ForeignKeyConstraint(['business_id'], ['business.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['client_id'], ['client.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['job_id'], ['jobs.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
-    )
     op.create_table('jobservices',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('job_id', sa.Integer(), nullable=False),
     sa.Column('service_id', sa.Integer(), nullable=False),
+    sa.Column('quantity', sa.Double(), nullable=False),
+    sa.Column('price', sa.Double(), nullable=False),
+    sa.Column('gst_percentage', sa.Double(), nullable=False),
     sa.ForeignKeyConstraint(['job_id'], ['jobs.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['service_id'], ['services.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('job_id', 'service_id', name='unique_job_service')
     )
     op.create_table('quotation',
     sa.Column('id', sa.Integer(), nullable=False),
@@ -158,7 +137,31 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['business_id'], ['business.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['client_id'], ['client.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['job_id'], ['jobs.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('job_id')
+    )
+    op.create_table('invoice',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('business_id', sa.Integer(), nullable=False),
+    sa.Column('quotation_id', sa.Integer(), nullable=True),
+    sa.Column('invoice_number', sa.Integer(), nullable=False),
+    sa.Column('client_id', sa.Integer(), nullable=False),
+    sa.Column('job_id', sa.Integer(), nullable=True),
+    sa.Column('total', sa.Double(), nullable=False),
+    sa.Column('discount', sa.Double(), nullable=False),
+    sa.Column('status', sa.String(), nullable=False),
+    sa.Column('start_date', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('due_date', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
+    sa.ForeignKeyConstraint(['business_id'], ['business.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['client_id'], ['client.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['job_id'], ['jobs.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['quotation_id'], ['quotation.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('business_id', 'invoice_number', name='unique_invoice'),
+    sa.UniqueConstraint('job_id'),
+    sa.UniqueConstraint('quotation_id')
     )
     # ### end Alembic commands ###
 
@@ -166,12 +169,11 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Downgrade schema."""
     # ### commands auto generated by Alembic - please adjust! ###
+    op.drop_table('invoice')
     op.drop_table('quotation')
     op.drop_table('jobservices')
-    op.drop_table('invoice')
     op.drop_table('jobs')
     op.drop_table('services')
-    op.drop_table('service_requests')
     op.drop_table('client')
     op.drop_table('business')
     op.drop_table('users')

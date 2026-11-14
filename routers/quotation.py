@@ -1,4 +1,4 @@
-from fastapi import APIRouter,status,HTTPException , Depends , Path
+from fastapi import APIRouter,status,HTTPException , Depends , Path, Response
 
 from database.models import Job, Business , Quotation, Invoice, Client
 from database.database import get_db
@@ -6,7 +6,9 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from services.user_auth import get_current_user_payload
-# 
+from services.pdfs import quotation_pdf
+
+
 from schemas.quotation import NewQuotation, UpdateQuotation , ShowAllQuotation , ShowQuotation, QuotationStatus
 from schemas.job import JobStatus
 from datetime import datetime, timezone
@@ -139,3 +141,26 @@ async def Quotation__update(updated_data:UpdateQuotation,id:int=Path(gt=0),paylo
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail="DataBase is Down.")
 
+
+   
+@router.get("/Quotation/{id}/pdf")
+async def Quotation__generate_pdf(db:AsyncSession=Depends(get_db), id:int=Path(gt=0), payload:dict=Depends(get_current_user_payload)):
+    user_id=int(payload.get("sub"))
+    db_business= await db.scalar(select(Business).where(Business.user_id == user_id, Business.is_deleted == False))
+    if not db_business:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No Business found. ")
+    db_quotation= await db.scalar(select(Quotation).where(Quotation.id == id, Quotation.business_id == db_business.id))
+    if not db_quotation:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No Invoice found. ")
+    db_client= await db.scalar(select(Client).where(Client.business_id == db_business.id , Client.id == db_quotation.client_id))
+    if not db_client:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No Client found. ")
+    db_job= await db.scalar(select(Job).where(Job.business_id == db_business.id, Job.id == db_quotation.job_id))
+    pdf_file = bytes(quotation_pdf(db_quotation, db_job, db_client,db_business))
+    return Response(
+        content=pdf_file,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="invoice-{db_quotation.id}.pdf"'
+        }
+    )

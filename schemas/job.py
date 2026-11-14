@@ -9,7 +9,6 @@ class JobStatus(str, Enum):
     DONE="done"
     REJECTED="rejected"
     PENDING="pending"
-    QUOTATION="quotation"
 
     
 class JobServiceInput(BaseModel):

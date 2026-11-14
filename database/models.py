@@ -144,7 +144,7 @@ class Invoice(Base):
             "business_id",
             "invoice_number",
             name="unique_invoice"
-        )
+        ),
     )
     id:Mapped[int]=mapped_column(primary_key=True)
 

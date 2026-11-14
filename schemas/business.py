@@ -6,9 +6,9 @@ class GetBusiness(BaseModel):
     owner_name:str
     email:str
     phone:str
-    website:str
+    website:str|None
     address_line1:str
-    address_line2:str
+    address_line2:str|None
     city:str
     state:str
     country:str
